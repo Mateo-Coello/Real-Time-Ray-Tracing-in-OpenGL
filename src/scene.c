@@ -133,8 +133,8 @@ void buildBVH(Scene* s, int nBins)
   s->objectIDs = genObjectIDs(s->nObjs);
   s->bvh = makeNodes(2*s->nObjs[2]+1);
   
-  s->bvh[0].count = s->nObjs[2];
-  s->bvh[0].content = 0;
+  s->bvh[0].nPrimitives = s->nObjs[2];
+  s->bvh[0].primitiveOffset = 0;
 
   Node* bins = makeNodes(nBins*3 + 2);
 
@@ -148,8 +148,8 @@ void buildBVH(Scene* s, int nBins)
 
 void updateBounds(Scene* s, int nodeIdx)
 {
-  int count = s->bvh[nodeIdx].count; 
-  int first = s->bvh[nodeIdx].content;
+  int count = s->bvh[nodeIdx].nPrimitives; 
+  int first = s->bvh[nodeIdx].primitiveOffset;
 
   for(int i = 0; i < count; i++)
   {
@@ -189,27 +189,15 @@ void updateBounds(Scene* s, int nodeIdx)
 
 int subdivide(Scene* s, int nodeIdx, int nodesUsed, Node* bins, int nBins)
 {
-  int objectCount = s->bvh[nodeIdx].count;
+  int objectCount = s->bvh[nodeIdx].nPrimitives;
 
   if (objectCount < 2) return nodesUsed;
 
   vec3 dimensions;
   glm_vec3_sub(s->bvh[nodeIdx].maxB, s->bvh[nodeIdx].minB, dimensions);
   
-  int bestAxis = 0;
-  float dimension = dimensions[0];
-  
-  if (dimensions[1] > dimension)
-  {
-    bestAxis = 1;
-    dimension = dimensions[1];
-  } 
-  if (dimensions[2] > dimension) 
-  {
-    bestAxis = 2;
-    dimension = dimensions[2];
-  } 
-
+  int bestAxis = glm_vec3_max(dimensions);
+  s->bvh[nodeIdx].splitAxis = bestAxis;
   int binCount = nBins;
 
   float pos, cost;
@@ -252,12 +240,12 @@ void determineBestSplitBin(Scene* s, int nodeIdx, int axis, int binCount, Node* 
     // unpack left box
     vec3 lB;
     glm_vec3_sub(bins[leftIdx].maxB, bins[leftIdx].minB, lB);
-    int objectCountLB = bins[leftIdx].count;
+    int objectCountLB = bins[leftIdx].nPrimitives;
     // printf("lB x:%f y:%f z:%f\n", lB[0], lB[1], lB[2]);
     // unpack left box
     vec3 rB;
     glm_vec3_sub(bins[rightIdx].maxB, bins[rightIdx].minB, rB);
-    int objectCountRB = bins[rightIdx].count;
+    int objectCountRB = bins[rightIdx].nPrimitives;
     // printf("rB x:%f y:%f z:%f\n", rB[0], rB[1], rB[2]);
 
     float cost = objectCountLB * (lB[0] * lB[1] + lB[1] * lB[2] + lB[0] * lB[2]) + objectCountRB * (rB[0] * rB[1] + rB[1] * rB[2] + rB[0] * rB[2]) ;
@@ -275,8 +263,8 @@ void buildBins(Scene* s, int nodeIdx, int axis, int binCount, Node* bins)
 {
   resetNodes(bins, 0, binCount);
 
-  int objectCount = s->bvh[nodeIdx].count;
-  int first = s->bvh[nodeIdx].content;
+  int objectCount = s->bvh[nodeIdx].nPrimitives;
+  int first = s->bvh[nodeIdx].primitiveOffset;
 
   float minB = s->bvh[nodeIdx].minB[axis];
   float maxB = s->bvh[nodeIdx].maxB[axis];
@@ -303,7 +291,7 @@ void buildBins(Scene* s, int nodeIdx, int axis, int binCount, Node* bins)
       // printf("Bin index: %d\n", binIdx);
       glm_vec3_minv(bins[binIdx].minB, sphereMinB, bins[binIdx].minB);     
       glm_vec3_maxv(bins[binIdx].maxB, sphereMaxB, bins[binIdx].maxB);
-      bins[binIdx].count ++;        
+      bins[binIdx].nPrimitives ++;        
       continue;
     }
 
@@ -323,7 +311,7 @@ void buildBins(Scene* s, int nodeIdx, int axis, int binCount, Node* bins)
     glm_vec3_maxv(bins[binIdx].maxB, a, bins[binIdx].maxB);
     glm_vec3_maxv(bins[binIdx].maxB, b, bins[binIdx].maxB);
     glm_vec3_maxv(bins[binIdx].maxB, c, bins[binIdx].maxB);
-    bins[binIdx].count++;
+    bins[binIdx].nPrimitives++;
   }
 }
 
@@ -338,7 +326,7 @@ void collectBins(Node* bins, int binCount)
     int leftIdx = i + binCount;
     
     glm_vec3_minv(bins[binCount*3].minB, bins[i].minB, bins[binCount*3].minB);
-    bins[binCount*3].count += bins[i].count;
+    bins[binCount*3].nPrimitives += bins[i].nPrimitives;
     glm_vec3_maxv(bins[binCount*3].maxB, bins[i].maxB, bins[binCount*3].maxB);
 
     bins[leftIdx] = bins[binCount*3];
@@ -347,7 +335,7 @@ void collectBins(Node* bins, int binCount)
     int rightIdx = (binCount - 1 - i + binCount*2);
     int binIdx = binCount - 1 - i;
     glm_vec3_minv(bins[binCount*3+1].minB, bins[binIdx].minB, bins[binCount*3+1].minB);
-    bins[binCount*3+1].count += bins[binIdx].count;
+    bins[binCount*3+1].nPrimitives += bins[binIdx].nPrimitives;
     glm_vec3_maxv(bins[binCount*3+1].maxB, bins[binIdx].maxB, bins[binCount*3+1].maxB);
 
     bins[rightIdx] = bins[binCount*3+1];
@@ -356,8 +344,8 @@ void collectBins(Node* bins, int binCount)
 
 int objectSplit(Scene* s, int parentIdx, int axis, int nodesUsed, float splitPos, Node* bins, int nBins)
 {
-  int objectCount = s->bvh[parentIdx].count;
-  int contents = s->bvh[parentIdx].content;
+  int objectCount = s->bvh[parentIdx].nPrimitives;
+  int contents = s->bvh[parentIdx].primitiveOffset;
 
   // split groups
   int i = contents;
@@ -382,21 +370,21 @@ int objectSplit(Scene* s, int parentIdx, int axis, int nodesUsed, float splitPos
 
   int leftChildIdx = nodesUsed;
   nodesUsed ++;
-  s->bvh[leftChildIdx].content = contents;
-  s->bvh[leftChildIdx].count = leftCount;
-  s->bvh[parentIdx].content = leftChildIdx;
+  s->bvh[leftChildIdx].primitiveOffset = contents;
+  s->bvh[leftChildIdx].nPrimitives = leftCount;
+  s->bvh[parentIdx].primitiveOffset = leftChildIdx;
 
   int rightChildIdx = nodesUsed;
   nodesUsed ++;
-  s->bvh[rightChildIdx].content = i;
-  s->bvh[rightChildIdx].count = objectCount - leftCount;
+  s->bvh[rightChildIdx].primitiveOffset = i;
+  s->bvh[rightChildIdx].nPrimitives = objectCount - leftCount;
 
   updateBounds(s, leftChildIdx);
   nodesUsed = subdivide(s, leftChildIdx, nodesUsed, bins, nBins);
   updateBounds(s, rightChildIdx);
   nodesUsed = subdivide(s, rightChildIdx, nodesUsed, bins, nBins);
 
-  s->bvh[parentIdx].count = 0;
+  s->bvh[parentIdx].nPrimitives = 0;
   return nodesUsed;
 }
 

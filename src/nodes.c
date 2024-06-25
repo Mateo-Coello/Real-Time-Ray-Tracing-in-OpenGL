@@ -1,15 +1,15 @@
 #include "nodes.h"
 #include <cglm/types.h>
 
-Nodes makeNodes(int nObjs)
+Nodes makeNodes(int nPrimitives)
 {
-  Nodes nodes = calloc(nObjs, sizeof(Node));
-  for (int i = 0; i < nObjs; i++)
+  Nodes nodes = calloc(nPrimitives, sizeof(Node));
+  for (int i = 0; i < nPrimitives; i++)
   {
     glm_vec4((vec3){INFINITY, INFINITY, INFINITY}, 0.0, nodes[i].minB);
-    nodes[i].count = 0;
+    nodes[i].nPrimitives = 0;
     glm_vec4((vec3){-INFINITY, -INFINITY, -INFINITY}, 0.0, nodes[i].maxB);
-    nodes[i].content = -1;
+    nodes[i].primitiveOffset = -1;
   }
 
   return nodes;
@@ -20,9 +20,9 @@ void resetNodes(Nodes nodes, int offset, int count)
   for(int i=0; i<count; i++)
   {
     glm_vec4((vec3){INFINITY, INFINITY, INFINITY}, 0.0, nodes[offset+i].minB);
-    nodes[offset+i].count = 0;
+    nodes[offset+i].nPrimitives = 0;
     glm_vec4((vec3){-INFINITY, -INFINITY, -INFINITY}, 0.0, nodes[offset+i].maxB);
-    nodes[offset+i].content = -1;
+    nodes[offset+i].primitiveOffset = -1;
   }
 }
 
@@ -37,7 +37,7 @@ void printNodes(Nodes nodes, int nNodes)
             i,
             nodes[i].minB[0],nodes[i].minB[1],nodes[i].minB[2],
             nodes[i].maxB[0],nodes[i].maxB[1],nodes[i].maxB[2],
-            nodes[i].count, nodes[i].content
+            nodes[i].nPrimitives, nodes[i].primitiveOffset
             );
   }
 }
