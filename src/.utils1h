@@ -1,0 +1,24 @@
+#ifndef UTILS_H
+#define UTILS_H
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <cglm/vec3.h>
+#include <cglm/affine.h>
+#include "../../include/typesRed.h"
+
+// float* verticesFromTriangles(Triangulation tri);
+
+vec3* generateNormals(VerticesList* vl, uintVec* idxVec);
+
+float* flattenVerticesList(VerticesList* vl);
+
+// float* combineVerticesNormals(float* vertices, vec3* normals, unsigned int numElems);
+
+vec3* averageNormals(vec3* normals, uintVec* idxVec);
+
+float* flattenVec3(vec3* vec, unsigned int numElems);
+
+float* flattenAveragedNormals(VerticesList* vl, uintVec* idxVec);
+
+#endif

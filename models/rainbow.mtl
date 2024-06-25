@@ -1,0 +1,64 @@
+newmtl none
+Kd 1.0 1.0 1.0
+Ns 0.5
+d 0.0
+newmtl Red
+Kd 1.00 0.18 0.18
+Ke 1.00 0.18 0.18
+Ns 0.0
+d 0.0
+newmtl Gold
+Kd 0.90 0.90 0.00
+Ke 0.90 0.90 0.00
+Ns 0.0
+d 0.0
+newmtl Cyan
+Kd 0.40 0.85 1.00
+Ke 0.40 0.85 1.00
+Ns 0.0
+d 0.0
+newmtl DPurple
+Kd 0.60 0.60 1.00
+Ke 0.60 0.60 1.00
+Ns 0.0
+d 0.0
+newmtl Purple
+Kd 0.86 0.30 1.00
+Ke 0.86 0.30 1.00
+Ns 0.0
+d 0.0
+newmtl DPink
+Kd 1.00 0.30 1.00
+Ke 1.00 0.30 1.00
+Ns 0.0
+d 0.0
+newmtl Pink
+Kd 1.00 0.60 0.80
+Ke 1.00 0.60 0.80
+Ns 0.0
+d 0.0
+newmtl Orange
+Kd 1.00 0.80 0.40
+Ke 1.00 0.80 0.40
+Ns 0.0
+d 0.0
+newmtl Green
+Kd 0.65 1.00 0.30
+Ke 0.65 1.00 0.30
+Ns 0.0
+d 0.0
+newmtl DGreen
+Kd 0.40 1.00 0.60
+Ke 0.40 1.00 0.60
+Ns 0.0
+d 0.0
+newmtl Turquoise
+Kd 0.10 1.00 0.77
+Ke 0.10 1.00 0.77
+Ns 0.0
+d 0.0
+newmtl Yellow
+Kd 1.00 1.0 0.1
+Ke 1.00 1.0 0.1
+Ns 0.0
+d 0.0
