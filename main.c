@@ -41,7 +41,7 @@ Shader taaShaderProgram;
 RenderInfo info;
 bool updateInfo = false;
 
-int main()
+int main(int argc, char *argv[])
 { 
   // glfw: initialize and configure
   // ------------------------------
@@ -103,7 +103,10 @@ int main()
   lastY = (float)SCREEN_HEIGHT/2;
 
   // Preparing scene
-  Scene s = generateCornellBoxScene();
+  Scene s;
+  printf("%d\n",argc);
+  if (argc == 1) s = generateDefaultScene();
+  else s = generateSceneModel(argv[1]);
 
   // Generate Scene's SSBOs
   unsigned int sceneSSBO[7];
@@ -112,7 +115,6 @@ int main()
 
   // Timing
   info = initRenderInfo();
-  
   // render loop
   // -----------
   while (!glfwWindowShouldClose(window))

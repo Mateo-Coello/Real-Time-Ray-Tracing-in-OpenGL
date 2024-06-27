@@ -1,3 +1,4 @@
+#include "nodes.h"
 #include <cglm/vec3.h>
 #define TINYOBJ_LOADER_C_IMPLEMENTATION
 #include "tinyobj_loader_c.h"
@@ -5,8 +6,38 @@
 
 int max(int a, int b){return a > b ? a : b;}
 int min(int a, int b){return a < b ? a : b;}
+void printVec3(vec3 v){printf("%f %f %f\n",v[0],v[1],v[2]);}
 
-Scene generateCornellBoxScene()
+bool hitBB(vec3 orig, vec3 dir, Node node, float nearestHit, vec3 invDir)
+{
+  vec3 tNear, tFar;
+  vec3 minB = {node.minB[0],node.minB[1],node.minB[2]};
+  vec3 maxB = {node.maxB[0],node.maxB[1],node.maxB[2]};
+  glm_vec3_sub(minB, orig, tNear);
+  // printVec3(minB);
+  // printVec3(orig);
+  // printVec3(tNear);
+  glm_vec3_mul(tNear, invDir, tNear);
+  // printVec3(invDir);
+  // printVec3(tNear);
+  glm_vec3_sub(maxB, orig, tFar);
+  glm_vec3_mul(tFar, invDir, tFar);
+  vec3 tMin, tMax;
+  glm_vec3_minv(tNear,tFar,tMin);
+  glm_vec3_maxv(tNear,tFar,tMax);
+  // printf("tMin: ");
+  // printVec3(tMin);
+  // printf("tMax: ");
+  // printVec3(tMax);
+  float t0 = fmax(tMin[0], tMin[1]);
+  t0 = fmax(t0, tMin[2]);
+  float t1 = fmin(tMax[0], tMax[1]);
+  t1 = fmin(t1, tMax[2]);
+  // printf("%f %f\n", t0, t1);
+  return t0 <= t1 && t1 > 0;
+}
+
+Scene generateDefaultScene()
 {
   Scene s = {};
   
@@ -15,10 +46,12 @@ Scene generateCornellBoxScene()
   s.spheres = genSphereBuffer(s.nObjs[0]);
 
   s.spheres[0] = sphere((vec3){0.0, 0.55, 0.0}, 0.5, 0);
+  // s.spheres[1] = sphere((vec3){-10, 0.55, 0.0}, 0.5, 0);
+  // s.spheres[2] = sphere((vec3){10, 0.55, 0.0}, 0.5, 0);
   s.spheres[1] = sphere((vec3){0.0, 8.0, 0.0}, 0.02, 3);
   
   // Scene Triangles
-  loadModel(&s, "/home/mai/Documents/C/rt_pbr/models/cornellbox.obj");
+  loadModel(&s, "./models/cornellbox.obj");
     
   // Scene BVH
   s.objectIDs = genObjectIDs(s.nObjs);
@@ -26,16 +59,59 @@ Scene generateCornellBoxScene()
   int nBins = 10;
   buildBVH(&s, nBins);
 
-  // for(int i = 0; i < s.nObjs[2]; i++)
-  // {
-  //   printf("| %d |", s.objectIDs[i].idx);
+  // int nodesToVisit[64];
+  // int toVisitOffset = 0, currentNodeIndex = 0;
+  // float nearestHit = 999999;
+
+  // vec3 orig = {-5,1,1};
+  // vec3 target = {5,1,1};
+  // vec3 dir;
+  // glm_vec3_sub(target, orig, dir);
+  // printVec3(dir);
+  // vec3 invDir = {1.0/dir[0],1.0/dir[1],1.0/dir[2]};
+  // printVec3(invDir);
+  // vec3 dirIsNeg = {invDir[0] < 0, invDir[1] < 0, invDir[2] > 0};
+  // printVec3(dirIsNeg);
+  
+  // while(true) {
+  //     Node node = s.bvh[currentNodeIndex];
+  //     printf("Node: %d SplitAxis: %d\n"
+  //            "Min Bound x:%f y:%f z:%f\n"
+  //            "Max Bound x:%f y:%f z:%f\n"
+  //            "Num Primitives: %d Primitive Offset:%d\n", 
+  //             currentNodeIndex, node.splitAxis,
+  //             node.minB[0],node.minB[1],node.minB[2],
+  //             node.maxB[0],node.maxB[1],node.maxB[2],
+  //             node.nPrimitives, node.primitiveOffset
+  //             );
+  //     int nPrimitives = node.nPrimitives;
+  //     int primitiveOffset = node.primitiveOffset;
+  //     if (hitBB(orig, dir, node, nearestHit, invDir)){
+  //         printf("Hit Node: %d\n", currentNodeIndex);
+  //         if (nPrimitives > 0){
+  //             for(int i = 0; i < nPrimitives; i++) {
+  //                 PrimitiveInfo objInfo = s.objectIDs[primitiveOffset + i];
+  //             }
+  //             if(toVisitOffset == 0) break;
+  //             currentNodeIndex = nodesToVisit[--toVisitOffset];
+  //         }
+  //         else {
+  //             if (dirIsNeg[node.splitAxis] > 0){
+  //                 nodesToVisit[toVisitOffset++] = primitiveOffset + 1;
+  //                 currentNodeIndex = primitiveOffset;
+  //             } 
+  //             else {
+  //                 nodesToVisit[toVisitOffset++] = primitiveOffset;
+  //                 currentNodeIndex = primitiveOffset + 1;
+  //             }
+  //         }
+  //     }
+  //     else {
+  //         if (toVisitOffset == 0) break;
+  //         currentNodeIndex = nodesToVisit[--toVisitOffset];
+  //     }
+  //     printf("CurrentNode: %d\n",currentNodeIndex);
   // }
-  // printf("\n");
-  // for(int i = 0; i < s.nObjs[2]; i++)
-  // {
-  //   printf("| %c |", s.objectIDs[i].type == SPHERE ? 'S' : 'T');
-  // }
-  // printf("\n");
   // for(int i=0; i < s.nObjs[1]; i++)
   // {
   //   printf("%d %d %d\n", s.triangles[i].a, s.triangles[i].b, s.triangles[i].c);
@@ -43,15 +119,30 @@ Scene generateCornellBoxScene()
   return s;
 }
 
+Scene generateSceneModel(char *modelName)
+{
+  Scene s = {};
+
+  char path[100] = "./models/";
+  strcat(path,modelName);
+  loadModel(&s, path);
+
+  s.objectIDs = genObjectIDs(s.nObjs);
+  s.bvh = makeNodes(2*s.nObjs[2]+1);
+  int nBins = 12;
+  buildBVH(&s, nBins);
+  
+  return s;
+}
+
 Scene generateRocksScene()
 {
   Scene s = {};
 
-  loadModel(&s, "/home/mai/Documents/C/computeShader/models/rocks.obj");
+  loadModel(&s, "./models/rocks.obj");
     
-  s.nMaterials = s.nMats;
-  s.materials = genMaterialBuffer(s.nMaterials);
-  
+  s.objectIDs = genObjectIDs(s.nObjs);
+  s.bvh = makeNodes(2*s.nObjs[2]+1);
   int nBins = 12;
   buildBVH(&s, nBins);
 
@@ -61,12 +152,6 @@ Scene generateRocksScene()
   printf("%d\n", s.attrib.num_faces);
   printf("%d\n", s.attrib.num_face_num_verts);
   printf("%ld\n", s.nMats);
-  
-  // for(int i=0; i < s.nMats; i++)
-  // {
-  //   s.materials[i] = lambertian(s.mats[i].diffuse);
-  //   printf("%f %f %f\n", s.materials[i].albedo[0],s.materials[i].albedo[1],s.materials[i].albedo[2]);
-  // }
   
   return s;
 }
@@ -91,20 +176,7 @@ Scene generateRainbowLightsScene()
 
   int nBins = 12;
   buildBVH(&s, nBins);
-
-  // for(int i=0; i < 2; i++)
-  // {
-  //   s.materials[i] = lambertian(s.mats[i].diffuse);
-  // }
-
-  // s.materials[2] = metal(s.mats[2].diffuse, 0.0);
-
-  // for(int i=3; i < s.nMats; i++)
-  // {
-  //   s.materials[i] = emissive(s.mats[i].diffuse, 1);
-  //   printf("%f %f %f\n", s.materials[i].albedo[0],s.materials[i].albedo[1],s.materials[i].albedo[2]);
-  // }
-  
+ 
   return s;
 }
   
@@ -124,7 +196,6 @@ void deleteSceneResources(Scene* s)
   free(s->objectIDs);
 }
 
-
 // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 //                 BVH Functions
 // ----------------------------------------------
@@ -143,6 +214,18 @@ void buildBVH(Scene* s, int nBins)
   s->nodesUsed = subdivide(s, 0, 1, bins, nBins);
   s->bvh = realloc(s->bvh, s->nodesUsed*sizeof(Node));
   
+  // printNodes(s->bvh, s->nodesUsed);
+  // for(int i = 0; i < s->nObjs[2]; i++)
+  // {
+  //   printf("| %d |", s->objectIDs[i].idx);
+  // }
+  // printf("\n");
+  // for(int i = 0; i < s->nObjs[2]; i++)
+  // {
+  //   printf("| %c |", s->objectIDs[i].type == SPHERE ? 'S' : 'T');
+  // }
+  // printf("\n");
+
   free(bins);
 }
 
@@ -196,8 +279,18 @@ int subdivide(Scene* s, int nodeIdx, int nodesUsed, Node* bins, int nBins)
   vec3 dimensions;
   glm_vec3_sub(s->bvh[nodeIdx].maxB, s->bvh[nodeIdx].minB, dimensions);
   
-  int bestAxis = glm_vec3_max(dimensions);
+  int bestAxis = 0;
+  float dimension = dimensions[0];
+
+  if (dimensions[1] > dimension)
+  {
+    bestAxis = 1;
+    dimension = dimensions[1];
+  } 
+  if (dimensions[2] > dimension) bestAxis = 2;
+  
   s->bvh[nodeIdx].splitAxis = bestAxis;
+
   int binCount = nBins;
 
   float pos, cost;
@@ -474,10 +567,10 @@ void loadModel(Scene* s, const char* filename)
   s->materials = genMaterialBuffer(s->nMats);
   for (size_t m = 0; m < s->nMats; m++) {
     s->materials[m] = material(s->mats[m]);
-    printf("%f %f %f\n", s->materials[m].albedo[0],s->materials[m].albedo[1],s->materials[m].albedo[2]);
-    printf("%f %f %f\n", s->materials[m].specular[0],s->materials[m].specular[1],s->materials[m].specular[2]);
-    printf("%f %f %f\n", s->materials[m].emission[0],s->materials[m].emission[1],s->materials[m].emission[2]);
-    printf("%f %f \n", s->materials[m].roughness,s->materials[m].metalness);
+    // printf("%f %f %f\n", s->materials[m].albedo[0],s->materials[m].albedo[1],s->materials[m].albedo[2]);
+    // printf("%f %f %f\n", s->materials[m].specular[0],s->materials[m].specular[1],s->materials[m].specular[2]);
+    // printf("%f %f %f\n", s->materials[m].emission[0],s->materials[m].emission[1],s->materials[m].emission[2]);
+    // printf("%f %f \n", s->materials[m].roughness,s->materials[m].metalness);
   }
   
   s->triangles = malloc(sizeof(Triangle)*s->nObjs[1]);

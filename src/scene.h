@@ -55,13 +55,15 @@ void collectBins(Node* bins, int binCount);
 
 int objectSplit(Scene* s, int parentIdx, int axis, int nodesUsed, float splitPos, Node* bins, int nBins);
 
+Scene generateSceneModel(char *modelName);
+
 Scene generateSimpleScene();
 
 Scene generateRocksScene();
 
 Scene generateRainbowLightsScene();
 
-Scene generateCornellBoxScene();
+Scene generateDefaultScene();
 
 void deleteSceneResources(Scene* s);
 

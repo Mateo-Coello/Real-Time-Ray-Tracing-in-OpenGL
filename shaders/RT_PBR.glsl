@@ -7,7 +7,7 @@ precision highp int;
 //                  GLOBAL PARAMETERS 
 // -------------------------------------------------
 
-#define MAX_BOUNCES 4
+#define MAX_BOUNCES 1
 #define INFINITY (1./0.)
 #define NEG_INFINITY (-INFINITY)
 #define EPSILON 0.0000001
@@ -60,8 +60,9 @@ struct Node
 {
     vec4 minB;
     vec4 maxB;
-    int count;
-    int content;
+    int splitAxis;
+    int nPrimitives;
+    int primitiveOffset;
 };
 
 struct Ray
@@ -371,10 +372,10 @@ bool hitTriangle(in Triangle tri, in Ray r, in Interval rayT, inout HitRecord re
     return true;
 }
 
-float hitBB(in Ray ray, in Node node, in float nearestHit) {
-
-    vec3 tMin = (node.minB.xyz - ray.orig) / ray.dir;
-    vec3 tMax = (node.maxB.xyz - ray.orig) / ray.dir;
+float hitBB1(in Ray r, in Node node, in float nearestHit) {
+    vec3 invDir = 1 / r.dir;
+    vec3 tMin = (node.minB.xyz - r.orig) * invDir;
+    vec3 tMax = (node.maxB.xyz - r.orig) * invDir;
     vec3 t1 = min(tMin, tMax);
     vec3 t2 = max(tMin, tMax);
     float tNear = max(max(t1.x, t1.y), t1.z);
@@ -387,7 +388,73 @@ float hitBB(in Ray ray, in Node node, in float nearestHit) {
     }
 }
 
+bool hitBB(in Ray r, in Node node, in float nearestHit, in vec3 invDir)
+{
+    vec3 tNear = (node.minB.xyz - r.orig) * invDir;
+    vec3 tFar  = (node.maxB.xyz - r.orig) * invDir;
+    vec3 tMin = min(tNear,tFar);
+    vec3 tMax = max(tNear,tFar);
+    float t0 = max(max(tMin.x, tMin.y), tMin.z);
+    float t1 = min(min(tMax.x, tMax.y), tMax.z);
+    // return t0 <= t1 && t1 > 0 && t0 < nearestHit;
+    return t0 <= t1;
+}
+
 HitRecord traceRay(in Ray r, in Interval rayT)
+{
+    HitRecord rec;
+    rec.scatterRay = r;
+    rec.hit = false;
+    float nearestHit = rayT.max;
+
+    int nodesToVisit[64];
+    int toVisitOffset = 0, currentNodeIndex = 0;
+
+    // vec3 invDir = vec3(1.0/r.dir.x,1.0/r.dir.y,1.0/r.dir.z);
+    vec3 invDir = 1.0/r.dir;
+    vec3 dirIsNeg = vec3(invDir.x < 0, invDir.y < 0, invDir.z > 0);
+
+    while(true) {
+        Node node = objectsBVH[currentNodeIndex];
+        int nPrimitives = node.nPrimitives;
+        int primitiveOffset = node.primitiveOffset;
+        if (hitBB(r, node, nearestHit, invDir)){
+            if (nPrimitives > 0){
+                for(int i = 0; i < nPrimitives; i++) {
+                    PrimitiveInfo objInfo = objectIDs[primitiveOffset + i];
+                    
+                    if (objInfo.type == SPHERE && hitSphere(spheres[objInfo.idx], r, interval(0.001, nearestHit), rec)){
+                        rec.hit = true;
+                        nearestHit = rec.t;
+                    }
+                    else if (hitTriangle(triangles[objInfo.idx], r, interval(0.001, nearestHit), rec)){
+                        rec.hit = true;
+                        nearestHit = rec.t;
+                    }
+                }
+                if(toVisitOffset == 0) break;
+                currentNodeIndex = nodesToVisit[--toVisitOffset];
+            }
+            else {
+                if (dirIsNeg[node.splitAxis] > 0.0){
+                    nodesToVisit[toVisitOffset++] = primitiveOffset + 1;
+                    currentNodeIndex = primitiveOffset;
+                } 
+                else {
+                    nodesToVisit[toVisitOffset++] = primitiveOffset;
+                    currentNodeIndex = primitiveOffset + 1;
+                }
+            }
+        }
+        else {
+            if (toVisitOffset == 0) break;
+            currentNodeIndex = nodesToVisit[--toVisitOffset];
+        }
+    }
+    return rec;
+}
+
+HitRecord traceRay1(in Ray r, in Interval rayT)
 {
     HitRecord rec;
     rec.hit = false;
@@ -399,8 +466,8 @@ HitRecord traceRay(in Ray r, in Interval rayT)
     int stackPos = 0;
 
     while(true) {
-        const int objectCount = node.count;
-        const int content = node.content;
+        const int objectCount = node.nPrimitives;
+        const int content = node.primitiveOffset;
         
         if (objectCount > 0) {
             
@@ -428,8 +495,8 @@ HitRecord traceRay(in Ray r, in Interval rayT)
             Node leftChild = objectsBVH[content];
             Node rightChild = objectsBVH[content + 1];
 
-            float dist1 = hitBB(r, leftChild, nearestHit);
-            float dist2 = hitBB(r, rightChild, nearestHit);
+            float dist1 = hitBB1(r, leftChild, nearestHit);
+            float dist2 = hitBB1(r, rightChild, nearestHit);
 
             if (dist1 > dist2) {
                 Node temp = leftChild;
@@ -459,55 +526,6 @@ HitRecord traceRay(in Ray r, in Interval rayT)
     }
     
     return rec;
-}
-
-bool scatter1(inout HitRecord rec)
-{
-    if (isEmissive(rec.material)) return false;
-
-    HitRecord shadowRec;
-    
-    vec3 N = rec.normal;
-    vec3 V = normalize(-rec.scatterRay.dir); // vector pointing towards the view position
-    vec3 f0 = vec3(0.04);
-    f0 = mix(f0, rec.material.albedo.xyz, rec.material.metalness);
-
-    // reflectance equation
-    rec.irradiance = vec3(0.0);
-    for (int i = sceneInfo[0] - sceneInfo[3]; i < sceneInfo[0]; i++)
-    {    
-        Sphere light = spheres[i];
-        Material lightProp = materials[light.matIdx]; 
-        vec3 L = light.center.xyz - rec.hitPoint; // vector pointing towards the light
-        // shadowRec = traceRay(ray(rec.hitPoint, normalize(L)));
-        
-        float distance    = length(L);
-        float attenuation = 1.0/(distance*distance);
-        vec3  radiance    = lightProp.emission.xyz * attenuation;
-
-        L = normalize(L);
-        vec3 H = normalize(V + L); // half-way vector between the view vector and the light vector
-
-        // cook-torrance brdf
-        float NDF = distributionGGX(N, H, rec.material.roughness);
-        float G   = geometrySmith(N, V, L, rec.material.roughness);
-        vec3  F   = fresnelSchlick(max(dot(H, V), 0.0), f0);
-        vec3 ks = F; 
-        vec3 kd = vec3(1.0) - ks;
-        kd *= 1.0 - rec.material.metalness;
-        
-        vec3 numerator    = NDF * G * F;
-        float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001;
-        vec3 specular     = numerator/denominator;
-
-        // Add to outgoing radiance Lo
-        float NdotL = max(dot(N, L), 0.0);
-        rec.irradiance += (kd * rec.material.albedo.xyz / PI + specular) * radiance * NdotL;
-    }
-    vec3 scatterDir = N + randomUnitVec3();
-    scatterDir = nearZero(scatterDir) ? N : scatterDir;
-    rec.scatterRay = ray(rec.hitPoint, scatterDir);
-    return true;
 }
 
 bool scatter(inout HitRecord rec)
@@ -573,7 +591,7 @@ vec3 rayColor(in Ray r)
     
     for(int bounce = 0; bounce <= MAX_BOUNCES; bounce++)
     {
-        rec = traceRay(rec.scatterRay, interval(0.001, 999999));
+        rec = traceRay1(rec.scatterRay, interval(0.001, 999999));
         
         if(!rec.hit){
             light = skyColor; 
@@ -591,23 +609,23 @@ vec3 rayColor(in Ray r)
         // Direct Illumination
         if (bounce == 0)
         {
-            Sphere light = spheres[1];
-            Material lightProp = materials[light.matIdx];
-            vec3 L = light.center.xyz - rec.hitPoint;
+            Sphere lightS = spheres[1];
+            Material lightProp = materials[lightS.matIdx];
+            vec3 L = lightS.center.xyz - rec.hitPoint;
             float distance = length(L);
             L = L/distance;
             float attenuation = 1.0 / (distance * distance);
             vec3 radiance = lightProp.emission.xyz * attenuation;
     
-            HitRecord shadowRec = traceRay(ray(rec.hitPoint, L), interval(0.001, distance));
+            HitRecord shadowRec = traceRay1(ray(rec.hitPoint, L), interval(0.001, distance));
             if (isEmissive(shadowRec.material))
                 directLighting *= radiance * max(dot(rec.normal, L), 0.0) * rec.material.albedo.xyz;
             else directLighting = vec3(0.0);
 
             imageStore(hitBuffer, pixelCoords, vec4(rec.hitPoint, 0));
         }
-        contribution = indirectLighting + directLighting;           
-        // contribution = directLighting;           
+        // contribution = indirectLighting + directLighting;           
+        contribution = indirectLighting;           
     }
         
     return contribution;  

@@ -17,7 +17,7 @@ typedef struct
 typedef Node* Nodes;
 
 Nodes makeNodes(int nPrimitives);
-void resetNodes(Nodes nodes, int offset, int nPrimitives);
+void resetNodes(Nodes nodes, int offset, int count);
 void printNodes(Nodes nodes, int nNodes);
 
 #endif

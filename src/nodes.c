@@ -30,11 +30,11 @@ void printNodes(Nodes nodes, int nNodes)
 {
   for(int i=0; i<nNodes; i++)
   {
-    printf("Node %d\n"
+    printf("Node: %d SplitAxis: %d\n"
            "Min Bound x:%f y:%f z:%f\n"
            "Max Bound x:%f y:%f z:%f\n"
-           "Count: %d Content:%d\n", 
-            i,
+           "Num Primitives: %d Primitive Offset:%d\n", 
+            i, nodes[i].splitAxis,
             nodes[i].minB[0],nodes[i].minB[1],nodes[i].minB[2],
             nodes[i].maxB[0],nodes[i].maxB[1],nodes[i].maxB[2],
             nodes[i].nPrimitives, nodes[i].primitiveOffset
