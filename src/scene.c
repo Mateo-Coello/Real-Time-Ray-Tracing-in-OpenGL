@@ -272,9 +272,9 @@ void updateBounds(Scene* s, int nodeIdx)
 
 int subdivide(Scene* s, int nodeIdx, int nodesUsed, Node* bins, int nBins)
 {
-  int objectCount = s->bvh[nodeIdx].nPrimitives;
+  int nPrimitives= s->bvh[nodeIdx].nPrimitives;
 
-  if (objectCount < 2) return nodesUsed;
+  if (nPrimitives < 2) return nodesUsed;
 
   vec3 dimensions;
   glm_vec3_sub(s->bvh[nodeIdx].maxB, s->bvh[nodeIdx].minB, dimensions);
@@ -298,11 +298,12 @@ int subdivide(Scene* s, int nodeIdx, int nodesUsed, Node* bins, int nBins)
   // printf("\nDetermine Best Split Bin\n");
   // printNodes(bins, 14);
 
-  float nodeCost = objectCount * (dimensions[0]*dimensions[1] + dimensions[1]*dimensions[2] + dimensions[0]*dimensions[2]);
+  float nodeCost = nPrimitives * (dimensions[0]*dimensions[1] + dimensions[1]*dimensions[2] + dimensions[0]*dimensions[2]);
+  float leafCost = (float)nPrimitives;
   // printf("Node cost:%f, cost:%f\n", nodeCost, cost);
   // printf("Best position: %f\n", pos);
   
-  if (cost >= nodeCost) return nodesUsed;
+  if (cost >= leafCost) return nodesUsed;
     
   return objectSplit(s, nodeIdx, bestAxis, nodesUsed, pos, bins, nBins);
 }
@@ -342,6 +343,7 @@ void determineBestSplitBin(Scene* s, int nodeIdx, int axis, int binCount, Node* 
     // printf("rB x:%f y:%f z:%f\n", rB[0], rB[1], rB[2]);
 
     float cost = objectCountLB * (lB[0] * lB[1] + lB[1] * lB[2] + lB[0] * lB[2]) + objectCountRB * (rB[0] * rB[1] + rB[1] * rB[2] + rB[0] * rB[2]) ;
+    float cost = objectCountLB * surfaceArea(&lB) + objectCountRB * surfaceArea(&rB);
     // printf("Cost:%f\n", cost);
     
     if (cost < *bestCost)
@@ -350,6 +352,7 @@ void determineBestSplitBin(Scene* s, int nodeIdx, int axis, int binCount, Node* 
       *bestCost = cost;
     }
   }
+  *bestCost = 1.0/2.0 + *bestCost/surfaceArea(&bvh[nodeIdx]);
 }
 
 void buildBins(Scene* s, int nodeIdx, int axis, int binCount, Node* bins)

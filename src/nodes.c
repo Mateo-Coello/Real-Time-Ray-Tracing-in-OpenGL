@@ -41,3 +41,10 @@ void printNodes(Nodes nodes, int nNodes)
             );
   }
 }
+
+float surfaceArea(Node *node)
+{
+  vec3 diag;
+  glm_vec3_sub(node->maxB, node->minB, diag);
+  return 2 * (diag[0] * diag[1] + diag[0] * diag[2] + diag[1] * diag[2]);
+}
