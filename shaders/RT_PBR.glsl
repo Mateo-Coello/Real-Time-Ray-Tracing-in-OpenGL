@@ -222,10 +222,7 @@ Ray ray(in vec3 origin, in vec3 direction)
     return r;
 }
 
-vec3 pointAt(in Ray r, in float t)
-{
-    return r.orig + t*r.dir;
-}
+vec3 pointAt(in Ray r, in float t){return r.orig + t*r.dir;}
 
 // -------------------------------------------------
 //                 Interval Functions 
@@ -247,11 +244,10 @@ bool surrounds(in Interval i, in float x){return i.min < x && x < i.max;}
 //             Physical Based Rendering 
 // -------------------------------------------------
 
-float distributionGGX(vec3 N, vec3 H, float roughness)
+float distributionGGX(float NdotH, float roughness)
 {
     float a = roughness*roughness;
     float a2 = a*a;
-    float NdotH = max(dot(N, H), 0.0);
     float NdotH2 = NdotH*NdotH;
 
     float num   = a2;
@@ -272,10 +268,8 @@ float geometrySchlickGGX(float NdotV, float roughness)
     return num / denom;
 }
                                                                                
-float geometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
+float geometrySmith(float NdotV, float NdotL, float roughness)
 {
-    float NdotV = max(dot(N, V), 0.0);
-    float NdotL = max(dot(N, L), 0.0);
     float ggx2 = geometrySchlickGGX(NdotV, roughness);
     float ggx1 = geometrySchlickGGX(NdotL, roughness);
 
@@ -397,7 +391,7 @@ bool hitBB(in Ray r, in Node node, in float nearestHit, in vec3 invDir)
     float t0 = max(max(tMin.x, tMin.y), tMin.z);
     float t1 = min(min(tMax.x, tMax.y), tMax.z);
     // return t0 <= t1 && t1 > 0 && t0 < nearestHit;
-    return t0 <= t1;
+    return t0 <= t1 && t1 > 0;
 }
 
 HitRecord traceRay(in Ray r, in Interval rayT)
@@ -437,12 +431,12 @@ HitRecord traceRay(in Ray r, in Interval rayT)
             }
             else {
                 if (dirIsNeg[node.splitAxis] > 0.0){
-                    nodesToVisit[toVisitOffset++] = primitiveOffset + 1;
-                    currentNodeIndex = primitiveOffset;
-                } 
-                else {
                     nodesToVisit[toVisitOffset++] = primitiveOffset;
                     currentNodeIndex = primitiveOffset + 1;
+                } 
+                else {
+                    nodesToVisit[toVisitOffset++] = primitiveOffset + 1;
+                    currentNodeIndex = primitiveOffset;
                 }
             }
         }
@@ -464,6 +458,9 @@ HitRecord traceRay1(in Ray r, in Interval rayT)
     Node node = objectsBVH[0];
     Node stack[30];
     int stackPos = 0;
+    
+    vec3 invDir = 1.0/r.dir;
+    if(!hitBB(r, node, nearestHit, 1.0/r.dir)) return rec;
 
     while(true) {
         const int objectCount = node.nPrimitives;
@@ -531,12 +528,15 @@ HitRecord traceRay1(in Ray r, in Interval rayT)
 bool scatter(inout HitRecord rec)
 {
     if (isEmissive(rec.material)) return false;
+    Material m = rec.material;
     
-    float diffuseRatio = 0.5 * (1.0 - rec.material.metalness);
+    float diffuseRatio = 0.5 * (1.0 - m.metalness);
     float specularRatio = 1 - diffuseRatio;
    
-    vec3 V = normalize(-rec.scatterRay.dir); 
-    vec3 reflectionDir = normalize(rec.normal + randomUnitVec3());
+    vec3 V = normalize(-rec.scatterRay.dir);
+    vec3 reflectionDir = 
+        int(m.metalness > 0)*reflect(-V, rec.normal) +
+        (1-m.metalness) * (rec.normal + randomUnitVec3());
     vec3 L = nearZero(reflectionDir) ? rec.normal : reflectionDir;    
     vec3 H = normalize(V + L);
 
@@ -546,22 +546,22 @@ bool scatter(inout HitRecord rec)
     float VdotH = max(dot(V, H), 0.0);
     
     vec3 f0 = vec3(0.04);
-    f0 = mix(f0, rec.material.albedo.xyz, rec.material.metalness);
+    f0 = mix(f0, m.albedo.xyz, m.metalness);
     
-    float NDF = distributionGGX(rec.normal, H, rec.material.roughness);
-    float G   = geometrySmith(rec.normal, V, L, rec.material.roughness);
-    vec3  F   = fresnelSchlick(max(dot(H, V), 0.0), f0);
+    float NDF = distributionGGX(NdotH, m.roughness);
+    float G   = geometrySmith(NdotV, NdotL, m.roughness);
+    vec3  F   = fresnelSchlick(VdotH, f0);
 
     vec3 ks = F; 
     vec3 kd = vec3(1.0) - ks;
-    kd *= 1.0 - rec.material.metalness;
+    kd *= 1.0 - m.metalness;
 
     vec3  numerator    = NDF * G * F;
     float denominator  = 4.0 * NdotV * NdotL + 0.0001;
     vec3  specularBRDF = numerator/denominator;
     float specularPDF  = importanceSampleGGX_PDF(NDF, NdotH, VdotH);
 
-    vec3  diffuseBRDF = rec.material.albedo.xyz / PI; 
+    vec3  diffuseBRDF = m.albedo.xyz / PI; 
     float diffusePDF  = NdotL / PI;
 
     vec3 totalBRDF = (diffuseBRDF * kd + specularBRDF) * NdotL;
@@ -571,10 +571,7 @@ bool scatter(inout HitRecord rec)
 
     rec.scatterRay.orig = rec.hitPoint;
     rec.scatterRay.dir  = reflectionDir;
-    if (totalPDF > 0.0)
-    {
-        rec.scatterRay.energy *= totalBRDF / totalPDF; 
-    }
+    if (totalPDF > 0.0) rec.scatterRay.energy *= totalBRDF / totalPDF; 
     return true;
 }
 
@@ -582,30 +579,22 @@ vec3 rayColor(in Ray r)
 {   
     vec3 light = vec3(0.0);
     vec3 indirectLighting = vec3(1.0);
-    vec3 directLighting = vec3(1.0);
+    vec3 directLighting = vec3(0.0);
     vec3 contribution = vec3(1.0);
-    vec3 skyColor = vec3(0.2, 0.2, 0.2);
+    vec3 skyColor = vec3(0.0);
     
     HitRecord rec;
     rec.scatterRay = r;
     
     for(int bounce = 0; bounce <= MAX_BOUNCES; bounce++)
     {
-        rec = traceRay1(rec.scatterRay, interval(0.001, 999999));
+        rec = traceRay(rec.scatterRay, interval(0.001, 999999));
         
         if(!rec.hit){
-            light = skyColor; 
+            // contribution *= skyColor; 
             break;
         }
 
-        // Indirect Illumination
-        if (scatter(rec))
-            indirectLighting *= rec.scatterRay.energy;
-        else { 
-            indirectLighting *= rec.material.emission.xyz;
-            break;
-        }
-        
         // Direct Illumination
         if (bounce == 0)
         {
@@ -617,15 +606,25 @@ vec3 rayColor(in Ray r)
             float attenuation = 1.0 / (distance * distance);
             vec3 radiance = lightProp.emission.xyz * attenuation;
     
-            HitRecord shadowRec = traceRay1(ray(rec.hitPoint, L), interval(0.001, distance));
+            HitRecord shadowRec = traceRay(ray(rec.hitPoint, L), interval(0.001, distance));
             if (isEmissive(shadowRec.material))
-                directLighting *= radiance * max(dot(rec.normal, L), 0.0) * rec.material.albedo.xyz;
+                directLighting = radiance * max(dot(rec.normal, L), 0.0) * rec.material.albedo.xyz;
             else directLighting = vec3(0.0);
 
             imageStore(hitBuffer, pixelCoords, vec4(rec.hitPoint, 0));
         }
+        
+        // Indirect Illumination
+        if (scatter(rec))
+            indirectLighting *= rec.scatterRay.energy;
+        else { 
+            indirectLighting *= rec.material.emission.xyz;
+            contribution = indirectLighting;           
+            break;
+        }
         // contribution = indirectLighting + directLighting;           
         contribution = indirectLighting;           
+        // contribution = directLighting;           
     }
         
     return contribution;  

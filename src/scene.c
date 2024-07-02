@@ -45,10 +45,10 @@ Scene generateDefaultScene()
   s.nObjs[3] = 1; // num lights
   s.spheres = genSphereBuffer(s.nObjs[0]);
 
-  s.spheres[0] = sphere((vec3){0.0, 0.55, 0.0}, 0.5, 0);
+  s.spheres[0] = sphere((vec3){0.0, 1.0, 0.0}, 0.5, 3);
   // s.spheres[1] = sphere((vec3){-10, 0.55, 0.0}, 0.5, 0);
   // s.spheres[2] = sphere((vec3){10, 0.55, 0.0}, 0.5, 0);
-  s.spheres[1] = sphere((vec3){0.0, 8.0, 0.0}, 0.02, 3);
+  s.spheres[1] = sphere((vec3){0.0, 8.0, 0.0}, 0.02, 4);
   
   // Scene Triangles
   loadModel(&s, "./models/cornellbox.obj");
@@ -298,7 +298,7 @@ int subdivide(Scene* s, int nodeIdx, int nodesUsed, Node* bins, int nBins)
   // printf("\nDetermine Best Split Bin\n");
   // printNodes(bins, 14);
 
-  float nodeCost = nPrimitives * (dimensions[0]*dimensions[1] + dimensions[1]*dimensions[2] + dimensions[0]*dimensions[2]);
+  // float nodeCost = nPrimitives * (dimensions[0]*dimensions[1] + dimensions[1]*dimensions[2] + dimensions[0]*dimensions[2]);
   float leafCost = (float)nPrimitives;
   // printf("Node cost:%f, cost:%f\n", nodeCost, cost);
   // printf("Best position: %f\n", pos);
@@ -342,8 +342,8 @@ void determineBestSplitBin(Scene* s, int nodeIdx, int axis, int binCount, Node* 
     int objectCountRB = bins[rightIdx].nPrimitives;
     // printf("rB x:%f y:%f z:%f\n", rB[0], rB[1], rB[2]);
 
-    float cost = objectCountLB * (lB[0] * lB[1] + lB[1] * lB[2] + lB[0] * lB[2]) + objectCountRB * (rB[0] * rB[1] + rB[1] * rB[2] + rB[0] * rB[2]) ;
-    float cost = objectCountLB * surfaceArea(&lB) + objectCountRB * surfaceArea(&rB);
+    // float cost = objectCountLB * (lB[0] * lB[1] + lB[1] * lB[2] + lB[0] * lB[2]) + objectCountRB * (rB[0] * rB[1] + rB[1] * rB[2] + rB[0] * rB[2]) ;
+    float cost = objectCountLB * surfaceArea(&bins[leftIdx]) + objectCountRB * surfaceArea(&bins[rightIdx]);
     // printf("Cost:%f\n", cost);
     
     if (cost < *bestCost)
@@ -352,7 +352,7 @@ void determineBestSplitBin(Scene* s, int nodeIdx, int axis, int binCount, Node* 
       *bestCost = cost;
     }
   }
-  *bestCost = 1.0/2.0 + *bestCost/surfaceArea(&bvh[nodeIdx]);
+  *bestCost = 1.0/2.0 + *bestCost/surfaceArea(&s->bvh[nodeIdx]);
 }
 
 void buildBins(Scene* s, int nodeIdx, int axis, int binCount, Node* bins)

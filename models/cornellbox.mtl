@@ -16,6 +16,12 @@ Ks 0.04 0.04 0.04
 Ke 0.0 0.0 0.0
 Ns 0.05
 d 0.0
+newmtl Yellow
+Kd 1.0 0.84 0.0
+Ks 0.04 0.04 0.04
+Ke 0.0 0.0 0.0
+Ns 0.1
+d 1.0
 newmtl WhiteLight
 Kd 1.0 1.0 1.0
 Ks 0.0 0.0 0.0
