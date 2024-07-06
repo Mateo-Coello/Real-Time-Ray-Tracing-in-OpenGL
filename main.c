@@ -16,7 +16,7 @@ void scroll_callback(GLFWwindow* window, double xOffset, double yOffset);
 void blockCursorCallback(GLFWwindow* window, int key, int scancode, int action, int mods); 
 void processInput(GLFWwindow *window);
 void sendCameraParameters(Shader* program, Camera* camera);
-void renderTriangle();
+void renderTriangleViewport();
 
 // Window settings
 unsigned int SCREEN_WIDTH = 1000;
@@ -174,7 +174,7 @@ int main(int argc, char *argv[])
       
     // Ray traced image
     useShader(&screenShaderProgram);
-    renderTriangle();
+    renderTriangleViewport();
   
     // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
     // -------------------------------------------------------------------------------
@@ -200,7 +200,7 @@ int main(int argc, char *argv[])
 unsigned int triVAO = 0;
 unsigned int triVBO;
 
-void renderTriangle()
+void renderTriangleViewport()
 {
 	if (triVAO == 0)
 	{

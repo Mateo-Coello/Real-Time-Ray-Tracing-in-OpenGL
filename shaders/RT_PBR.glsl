@@ -390,8 +390,7 @@ bool hitBB(in Ray r, in Node node, in float nearestHit, in vec3 invDir)
     vec3 tMax = max(tNear,tFar);
     float t0 = max(max(tMin.x, tMin.y), tMin.z);
     float t1 = min(min(tMax.x, tMax.y), tMax.z);
-    // return t0 <= t1 && t1 > 0 && t0 < nearestHit;
-    return t0 <= t1 && t1 > 0;
+    return t0 <= t1 && t1 > 0 && t0 < nearestHit;
 }
 
 HitRecord traceRay(in Ray r, in Interval rayT)
@@ -581,7 +580,7 @@ vec3 rayColor(in Ray r)
     vec3 indirectLighting = vec3(1.0);
     vec3 directLighting = vec3(0.0);
     vec3 contribution = vec3(1.0);
-    vec3 skyColor = vec3(0.0);
+    vec3 skyColor = vec3(1.0);
     
     HitRecord rec;
     rec.scatterRay = r;
@@ -591,14 +590,14 @@ vec3 rayColor(in Ray r)
         rec = traceRay(rec.scatterRay, interval(0.001, 999999));
         
         if(!rec.hit){
-            // contribution *= skyColor; 
+            contribution *= skyColor;
             break;
         }
 
         // Direct Illumination
         if (bounce == 0)
         {
-            Sphere lightS = spheres[1];
+            Sphere lightS = spheres[0];
             Material lightProp = materials[lightS.matIdx];
             vec3 L = lightS.center.xyz - rec.hitPoint;
             float distance = length(L);
@@ -622,8 +621,8 @@ vec3 rayColor(in Ray r)
             contribution = indirectLighting;           
             break;
         }
-        // contribution = indirectLighting + directLighting;           
-        contribution = indirectLighting;           
+        contribution = indirectLighting + directLighting;           
+        // contribution = indirectLighting;           
         // contribution = directLighting;           
     }
         

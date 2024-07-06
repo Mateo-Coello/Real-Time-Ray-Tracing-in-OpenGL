@@ -58,64 +58,6 @@ Scene generateDefaultScene()
   s.bvh = makeNodes(2*s.nObjs[2]+1);
   int nBins = 10;
   buildBVH(&s, nBins);
-
-  // int nodesToVisit[64];
-  // int toVisitOffset = 0, currentNodeIndex = 0;
-  // float nearestHit = 999999;
-
-  // vec3 orig = {-5,1,1};
-  // vec3 target = {5,1,1};
-  // vec3 dir;
-  // glm_vec3_sub(target, orig, dir);
-  // printVec3(dir);
-  // vec3 invDir = {1.0/dir[0],1.0/dir[1],1.0/dir[2]};
-  // printVec3(invDir);
-  // vec3 dirIsNeg = {invDir[0] < 0, invDir[1] < 0, invDir[2] > 0};
-  // printVec3(dirIsNeg);
-  
-  // while(true) {
-  //     Node node = s.bvh[currentNodeIndex];
-  //     printf("Node: %d SplitAxis: %d\n"
-  //            "Min Bound x:%f y:%f z:%f\n"
-  //            "Max Bound x:%f y:%f z:%f\n"
-  //            "Num Primitives: %d Primitive Offset:%d\n", 
-  //             currentNodeIndex, node.splitAxis,
-  //             node.minB[0],node.minB[1],node.minB[2],
-  //             node.maxB[0],node.maxB[1],node.maxB[2],
-  //             node.nPrimitives, node.primitiveOffset
-  //             );
-  //     int nPrimitives = node.nPrimitives;
-  //     int primitiveOffset = node.primitiveOffset;
-  //     if (hitBB(orig, dir, node, nearestHit, invDir)){
-  //         printf("Hit Node: %d\n", currentNodeIndex);
-  //         if (nPrimitives > 0){
-  //             for(int i = 0; i < nPrimitives; i++) {
-  //                 PrimitiveInfo objInfo = s.objectIDs[primitiveOffset + i];
-  //             }
-  //             if(toVisitOffset == 0) break;
-  //             currentNodeIndex = nodesToVisit[--toVisitOffset];
-  //         }
-  //         else {
-  //             if (dirIsNeg[node.splitAxis] > 0){
-  //                 nodesToVisit[toVisitOffset++] = primitiveOffset + 1;
-  //                 currentNodeIndex = primitiveOffset;
-  //             } 
-  //             else {
-  //                 nodesToVisit[toVisitOffset++] = primitiveOffset;
-  //                 currentNodeIndex = primitiveOffset + 1;
-  //             }
-  //         }
-  //     }
-  //     else {
-  //         if (toVisitOffset == 0) break;
-  //         currentNodeIndex = nodesToVisit[--toVisitOffset];
-  //     }
-  //     printf("CurrentNode: %d\n",currentNodeIndex);
-  // }
-  // for(int i=0; i < s.nObjs[1]; i++)
-  // {
-  //   printf("%d %d %d\n", s.triangles[i].a, s.triangles[i].b, s.triangles[i].c);
-  // }  
   return s;
 }
 
@@ -123,13 +65,19 @@ Scene generateSceneModel(char *modelName)
 {
   Scene s = {};
 
+  s.nObjs[0] = 1; // num spheres
+  s.nObjs[3] = 1; // num lights
+  s.spheres = genSphereBuffer(s.nObjs[0]);
+
+  s.spheres[0] = sphere((vec3){0.0, 3.0, -0.0}, 0.02, 3);
+  
   char path[100] = "./models/";
   strcat(path,modelName);
   loadModel(&s, path);
 
   s.objectIDs = genObjectIDs(s.nObjs);
   s.bvh = makeNodes(2*s.nObjs[2]+1);
-  int nBins = 12;
+  int nBins = 11;
   buildBVH(&s, nBins);
   
   return s;
@@ -563,6 +511,7 @@ void loadModel(Scene* s, const char* filename)
     return;
   }
   s->nObjs[1] = s->attrib.num_face_num_verts; // num triangles
+  printf("Num Triangles: %d\n", s->nObjs[1]);
 
   int v0Idx, v1Idx, v2Idx;
 
