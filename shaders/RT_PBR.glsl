@@ -117,7 +117,7 @@ layout(std430, binding = 5) readonly buffer TrianglesData  { Triangle triangles[
 
 layout(std430, binding = 6) readonly buffer MaterialsData  { Material materials[]; };
 
-layout(std430, binding = 7) readonly buffer ObjectIDs      { PrimitiveInfo objectIDs[]; };
+layout(std430, binding = 7) readonly buffer ObjectIDs      { PrimitiveInfo primitiveIDs[]; };
 
 layout(std430, binding = 8) readonly buffer ObjectsBVH     { Node objectsBVH[]; };
 
@@ -126,7 +126,7 @@ layout(location = 2) uniform int   uFrameCount;
 layout(location = 3) uniform vec3  position;
 layout(location = 4) uniform mat4  invView;
 layout(location = 5) uniform mat4  invProj;
-layout(location = 6) uniform ivec4 sceneInfo;
+layout(location = 6) uniform ivec4 sceneNumPrimitives;
 
 // -------------------------------------------------
 //                   Random Utils 
@@ -414,7 +414,7 @@ HitRecord traceRay(in Ray r, in Interval rayT)
         if (hitBB(r, node, nearestHit, invDir)){
             if (nPrimitives > 0){
                 for(int i = 0; i < nPrimitives; i++) {
-                    PrimitiveInfo objInfo = objectIDs[primitiveOffset + i];
+                    PrimitiveInfo objInfo = primitiveIDs[primitiveOffset + i];
                     
                     if (objInfo.type == SPHERE && hitSphere(spheres[objInfo.idx], r, interval(0.001, nearestHit), rec)){
                         rec.hit = true;
@@ -468,7 +468,7 @@ HitRecord traceRay1(in Ray r, in Interval rayT)
         if (objectCount > 0) {
             
             for(int i = 0; i < objectCount; i++) {
-                PrimitiveInfo objInfo = objectIDs[i + content];
+                PrimitiveInfo objInfo = primitiveIDs[i + content];
                 
                 if (objInfo.type == SPHERE && hitSphere(spheres[objInfo.idx], r, interval(0.001, nearestHit), rec)){
                     rec.hit = true;
@@ -594,10 +594,19 @@ vec3 rayColor(in Ray r)
             break;
         }
 
+        // Indirect Illumination
+        if (scatter(rec))
+            indirectLighting *= rec.scatterRay.energy;
+        else { 
+            indirectLighting *= rec.material.emission.xyz;
+            contribution = indirectLighting;           
+            break;
+        }
+
         // Direct Illumination
         if (bounce == 0)
         {
-            Sphere lightS = spheres[0];
+            Sphere lightS = spheres[1];
             Material lightProp = materials[lightS.matIdx];
             vec3 L = lightS.center.xyz - rec.hitPoint;
             float distance = length(L);
@@ -613,14 +622,6 @@ vec3 rayColor(in Ray r)
             imageStore(hitBuffer, pixelCoords, vec4(rec.hitPoint, 0));
         }
         
-        // Indirect Illumination
-        if (scatter(rec))
-            indirectLighting *= rec.scatterRay.energy;
-        else { 
-            indirectLighting *= rec.material.emission.xyz;
-            contribution = indirectLighting;           
-            break;
-        }
         contribution = indirectLighting + directLighting;           
         // contribution = indirectLighting;           
         // contribution = directLighting;           

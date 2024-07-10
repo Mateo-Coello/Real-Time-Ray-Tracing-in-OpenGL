@@ -30,7 +30,8 @@ typedef struct
   Sphere* spheres;
   Triangle* triangles;
   Node* bvh;
-  PrimitiveInfo* objectIDs;
+  Node* primitivesAABB;
+  PrimitiveInfo* primitiveIDs;
   tinyobj_attrib_t attrib;
   tinyobj_shape_t* shapes;
   tinyobj_material_t* mats;
@@ -43,6 +44,8 @@ typedef struct
 
 void buildBVH(Scene* s, int nBins);
 
+void computeAABBs(Scene* s);
+
 void updateBounds(Scene* s, int nodeIdx);
 
 int subdivide(Scene* s, int nodeIdx, int nodesUsed, Node* bins, int nBins);
@@ -51,9 +54,9 @@ void determineBestSplitBin(Scene* s, int nodeIdx, int axis, int binCount, Node* 
 
 void buildBins(Scene* s, int nodeIdx, int axis, int binCount, Node* bins);
 
-void collectBins(Node* bins, int binCount);
+void computePossibleBinPartitions(Node* bins, int binCount);
 
-int objectSplit(Scene* s, int parentIdx, int axis, int nodesUsed, float splitPos, Node* bins, int nBins);
+int splitAABB(Scene* s, int parentIdx, int axis, int nodesUsed, float splitPos, Node* bins, int nBins);
 
 Scene generateSceneModel(char *modelName);
 

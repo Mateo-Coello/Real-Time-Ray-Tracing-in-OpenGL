@@ -6,36 +6,6 @@
 
 int max(int a, int b){return a > b ? a : b;}
 int min(int a, int b){return a < b ? a : b;}
-void printVec3(vec3 v){printf("%f %f %f\n",v[0],v[1],v[2]);}
-
-bool hitBB(vec3 orig, vec3 dir, Node node, float nearestHit, vec3 invDir)
-{
-  vec3 tNear, tFar;
-  vec3 minB = {node.minB[0],node.minB[1],node.minB[2]};
-  vec3 maxB = {node.maxB[0],node.maxB[1],node.maxB[2]};
-  glm_vec3_sub(minB, orig, tNear);
-  // printVec3(minB);
-  // printVec3(orig);
-  // printVec3(tNear);
-  glm_vec3_mul(tNear, invDir, tNear);
-  // printVec3(invDir);
-  // printVec3(tNear);
-  glm_vec3_sub(maxB, orig, tFar);
-  glm_vec3_mul(tFar, invDir, tFar);
-  vec3 tMin, tMax;
-  glm_vec3_minv(tNear,tFar,tMin);
-  glm_vec3_maxv(tNear,tFar,tMax);
-  // printf("tMin: ");
-  // printVec3(tMin);
-  // printf("tMax: ");
-  // printVec3(tMax);
-  float t0 = fmax(tMin[0], tMin[1]);
-  t0 = fmax(t0, tMin[2]);
-  float t1 = fmin(tMax[0], tMax[1]);
-  t1 = fmin(t1, tMax[2]);
-  // printf("%f %f\n", t0, t1);
-  return t0 <= t1 && t1 > 0;
-}
 
 Scene generateDefaultScene()
 {
@@ -46,17 +16,14 @@ Scene generateDefaultScene()
   s.spheres = genSphereBuffer(s.nObjs[0]);
 
   s.spheres[0] = sphere((vec3){0.0, 1.0, 0.0}, 0.5, 3);
-  // s.spheres[1] = sphere((vec3){-10, 0.55, 0.0}, 0.5, 0);
-  // s.spheres[2] = sphere((vec3){10, 0.55, 0.0}, 0.5, 0);
   s.spheres[1] = sphere((vec3){0.0, 8.0, 0.0}, 0.02, 4);
   
   // Scene Triangles
   loadModel(&s, "./models/cornellbox.obj");
     
   // Scene BVH
-  s.objectIDs = genObjectIDs(s.nObjs);
-  s.bvh = makeNodes(2*s.nObjs[2]+1);
-  int nBins = 10;
+  s.primitiveIDs = genObjectIDs(s.nObjs);
+  int nBins = 11;
   buildBVH(&s, nBins);
   return s;
 }
@@ -75,8 +42,7 @@ Scene generateSceneModel(char *modelName)
   strcat(path,modelName);
   loadModel(&s, path);
 
-  s.objectIDs = genObjectIDs(s.nObjs);
-  s.bvh = makeNodes(2*s.nObjs[2]+1);
+  s.primitiveIDs = genObjectIDs(s.nObjs);
   int nBins = 11;
   buildBVH(&s, nBins);
   
@@ -89,7 +55,7 @@ Scene generateRocksScene()
 
   loadModel(&s, "./models/rocks.obj");
     
-  s.objectIDs = genObjectIDs(s.nObjs);
+  s.primitiveIDs = genObjectIDs(s.nObjs);
   s.bvh = makeNodes(2*s.nObjs[2]+1);
   int nBins = 12;
   buildBVH(&s, nBins);
@@ -115,7 +81,7 @@ Scene generateRainbowLightsScene()
   s.spheres[1] = sphere((vec3){0.7, 0.2, 0.3}, 0.2, 2);
   s.spheres[2] = sphere((vec3){-0.6, 0.1, 0.55}, 0.1, 1);
 
-  loadModel(&s, "/home/mai/Documents/C/computeShader/models/rainbow.obj");
+  loadModel(&s, "/models/rainbow.obj");
 
   s.nMaterials = s.nMats;
   s.materials = genMaterialBuffer(s.nMaterials);
@@ -141,7 +107,8 @@ void deleteSceneResources(Scene* s)
   if (s->triangles != NULL) free(s->triangles);
   free(s->materials);
   free(s->bvh);
-  free(s->objectIDs);
+  free(s->primitivesAABB);
+  free(s->primitiveIDs);
 }
 
 // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -149,84 +116,97 @@ void deleteSceneResources(Scene* s)
 // ----------------------------------------------
 void buildBVH(Scene* s, int nBins)
 {
-  s->objectIDs = genObjectIDs(s->nObjs);
-  s->bvh = makeNodes(2*s->nObjs[2]+1);
+  s->primitiveIDs = genObjectIDs(s->nObjs);
+  s->bvh = makeNodes(2*s->nObjs[2]-1);
   
   s->bvh[0].nPrimitives = s->nObjs[2];
   s->bvh[0].primitiveOffset = 0;
 
   Node* bins = makeNodes(nBins*3 + 2);
+  s->primitivesAABB = makeNodes(s->nObjs[2]);
 
+  computeAABBs(s);
   updateBounds(s, 0);
   
   s->nodesUsed = subdivide(s, 0, 1, bins, nBins);
   s->bvh = realloc(s->bvh, s->nodesUsed*sizeof(Node));
   
-  // printNodes(s->bvh, s->nodesUsed);
+  printNodes(s->bvh, s->nodesUsed);
+  for(int i = 0; i < s->nObjs[2]; i++)
+  {
+    printf("| %d |", s->primitiveIDs[i].idx);
+  }
+  printf("\n");
   // for(int i = 0; i < s->nObjs[2]; i++)
   // {
-  //   printf("| %d |", s->objectIDs[i].idx);
-  // }
-  // printf("\n");
-  // for(int i = 0; i < s->nObjs[2]; i++)
-  // {
-  //   printf("| %c |", s->objectIDs[i].type == SPHERE ? 'S' : 'T');
+  //   printf("| %c |", s->primitiveIDs[i].type == SPHERE ? 'S' : 'T');
   // }
   // printf("\n");
 
   free(bins);
 }
 
-void updateBounds(Scene* s, int nodeIdx)
+// Compute the AABB of each primitive
+void computeAABBs(Scene* s)
 {
-  int count = s->bvh[nodeIdx].nPrimitives; 
-  int first = s->bvh[nodeIdx].primitiveOffset;
-
-  for(int i = 0; i < count; i++)
+  for (int i=0; i < s->nObjs[2]; i++)
   {
-    PrimitiveInfo object = s->objectIDs[first+i];
-    vec3 minB, maxB;
+    PrimitiveInfo object = s->primitiveIDs[i];
 
-    // Sphere Primitive
+    // Sphere primitive
     if (object.type == SPHERE)
     {
-        // find new minimum
-        glm_vec3_subs(s->spheres[object.idx].center, s->spheres[object.idx].radius, minB);
-        glm_vec3_minv(minB, s->bvh[nodeIdx].minB, s->bvh[nodeIdx].minB);
-    
-        // find new maximum
-        glm_vec3_adds(s->spheres[object.idx].center, s->spheres[object.idx].radius, maxB);
-        glm_vec3_maxv(maxB, s->bvh[nodeIdx].maxB, s->bvh[nodeIdx].maxB);
+        glm_vec3_subs(s->spheres[object.idx].center, s->spheres[object.idx].radius, s->primitivesAABB[object.idx].minB); // Min bound
+        glm_vec3_adds(s->spheres[object.idx].center, s->spheres[object.idx].radius, s->primitivesAABB[object.idx].maxB); // Max bound
         continue;
     }
-
-    // Triangle Primitive
+    
+    // Triangle Primitives
     vec3 a, b, c; 
     triangleVertex(s->attrib.vertices, s->triangles[object.idx].a, a);
     triangleVertex(s->attrib.vertices, s->triangles[object.idx].b, b);
     triangleVertex(s->attrib.vertices, s->triangles[object.idx].c, c);
-    
-    // find new minimum
-    glm_vec3_minv(s->bvh[nodeIdx].minB, a, s->bvh[nodeIdx].minB);
-    glm_vec3_minv(s->bvh[nodeIdx].minB, b, s->bvh[nodeIdx].minB);
-    glm_vec3_minv(s->bvh[nodeIdx].minB, c, s->bvh[nodeIdx].minB);
 
-    // find new maximum
-    glm_vec3_maxv(s->bvh[nodeIdx].maxB, a, s->bvh[nodeIdx].maxB);
-    glm_vec3_maxv(s->bvh[nodeIdx].maxB, b, s->bvh[nodeIdx].maxB);
-    glm_vec3_maxv(s->bvh[nodeIdx].maxB, c, s->bvh[nodeIdx].maxB);
+    // Min bound
+    glm_vec3_minv(a, b, s->primitivesAABB[object.idx].minB);
+    glm_vec3_minv(s->primitivesAABB[object.idx].minB, c, s->primitivesAABB[object.idx].minB);
+    // Max bound
+    glm_vec3_maxv(a, b, s->primitivesAABB[object.idx].maxB);
+    glm_vec3_maxv(s->primitivesAABB[object.idx].maxB, c, s->primitivesAABB[object.idx].maxB);
   }
 }
 
+// Compute or update the bounds of a node's AABB
+void updateBounds(Scene* s, int nodeIdx)
+{
+  int nPrimitives = s->bvh[nodeIdx].nPrimitives; 
+  int first = s->bvh[nodeIdx].primitiveOffset;
+
+  for(int i = 0; i < nPrimitives; i++)
+  {
+    PrimitiveInfo object = s->primitiveIDs[first+i];
+
+    // Update node's min bound
+    glm_vec3_minv(s->primitivesAABB[object.idx].minB, s->bvh[nodeIdx].minB, s->bvh[nodeIdx].minB);
+
+    // Update node's max bound
+    glm_vec3_maxv(s->primitivesAABB[object.idx].maxB, s->bvh[nodeIdx].maxB, s->bvh[nodeIdx].maxB);
+  }
+}
+
+/* Check the cost of a partition based on the Surface Area Heurictic.
+   If the cost of partitioning is better than creating a leaf then
+   the node will be subdivided. */
 int subdivide(Scene* s, int nodeIdx, int nodesUsed, Node* bins, int nBins)
 {
-  int nPrimitives= s->bvh[nodeIdx].nPrimitives;
-
+  int nPrimitives = s->bvh[nodeIdx].nPrimitives;
+  
   if (nPrimitives < 2) return nodesUsed;
 
+  // Determine the largest dimension of an AABB for selecting the split axis
   vec3 dimensions;
   glm_vec3_sub(s->bvh[nodeIdx].maxB, s->bvh[nodeIdx].minB, dimensions);
-  
+
   int bestAxis = 0;
   float dimension = dimensions[0];
 
@@ -239,60 +219,48 @@ int subdivide(Scene* s, int nodeIdx, int nodesUsed, Node* bins, int nBins)
   
   s->bvh[nodeIdx].splitAxis = bestAxis;
 
-  int binCount = nBins;
-
+  // Computer the cost of every possible bin partition along the largest axis
   float pos, cost;
-  determineBestSplitBin(s, nodeIdx, bestAxis, binCount, bins, &pos, &cost);
-  // printf("\nDetermine Best Split Bin\n");
-  // printNodes(bins, 14);
+
+  determineBestSplitBin(s, nodeIdx, bestAxis, nBins, bins, &pos, &cost);
 
   // float nodeCost = nPrimitives * (dimensions[0]*dimensions[1] + dimensions[1]*dimensions[2] + dimensions[0]*dimensions[2]);
   float leafCost = (float)nPrimitives;
-  // printf("Node cost:%f, cost:%f\n", nodeCost, cost);
-  // printf("Best position: %f\n", pos);
   
   if (cost >= leafCost) return nodesUsed;
     
-  return objectSplit(s, nodeIdx, bestAxis, nodesUsed, pos, bins, nBins);
+  return splitAABB(s, nodeIdx, bestAxis, nodesUsed, pos, bins, nBins);
 }
 
-void determineBestSplitBin(Scene* s, int nodeIdx, int axis, int binCount, Node* bins, float* bestPos, float* bestCost)
+// Determine which possible partition of the bins is the best
+void determineBestSplitBin(Scene* s, int nodeIdx, int axis, int nBins, Node* bins, float* bestPos, float* bestCost)
 {
-  resetNodes(bins, 0, binCount*3+2);
-  buildBins(s, nodeIdx, axis, binCount, bins);
-  // printf("\nBuild Bins\n");
-  // printNodes(bins, 14);
-  collectBins(bins, binCount);
-  // printf("\nCollect Bins\n");
-  // printNodes(bins, 14);
+  resetNodes(bins, 0, nBins*3+2); // Clear bins content from previous computation
+  buildBins(s, nodeIdx, axis, nBins, bins);
+  computePossibleBinPartitions(bins, nBins);
 
   *bestPos = 0;
   *bestCost = FLT_MAX;
+  
   float testPos = s->bvh[nodeIdx].minB[axis];
   float extent = s->bvh[nodeIdx].maxB[axis] - testPos;
-  float scale = extent/binCount;
-  
-  // printf("Extent:%f Bin Size:%f\n", extent, scale);
+  float scale = extent/nBins;
 
-  for(int i = 0; i < binCount; i++)
+  // Determine which possible partition has the best cost
+  for(int i = 0; i < nBins - 1; i++)
   {
-    int leftIdx = i+binCount;
-    int rightIdx = i+binCount*2;
+    int leftIdx = i+nBins; // possible left partition
+    int rightIdx = i+nBins*2; // possible right partition
 
-    // unpack left box
-    vec3 lB;
-    glm_vec3_sub(bins[leftIdx].maxB, bins[leftIdx].minB, lB);
+    // Number of primitives in the left partition
     int objectCountLB = bins[leftIdx].nPrimitives;
-    // printf("lB x:%f y:%f z:%f\n", lB[0], lB[1], lB[2]);
-    // unpack left box
-    vec3 rB;
-    glm_vec3_sub(bins[rightIdx].maxB, bins[rightIdx].minB, rB);
+    // Number of primitives in the right partition
     int objectCountRB = bins[rightIdx].nPrimitives;
-    // printf("rB x:%f y:%f z:%f\n", rB[0], rB[1], rB[2]);
 
-    // float cost = objectCountLB * (lB[0] * lB[1] + lB[1] * lB[2] + lB[0] * lB[2]) + objectCountRB * (rB[0] * rB[1] + rB[1] * rB[2] + rB[0] * rB[2]) ;
+    /* Determine the right part of c(L,R) = c_t + 1/SA(N) *(|N_L| * SA(N_L) + |N_R| * SA(N_R))
+       Without dividing by SA(N) to reduce the number of computations
+       That is, |N_L| * SA(N_L) + |N_R| * SA(N_R) */
     float cost = objectCountLB * surfaceArea(&bins[leftIdx]) + objectCountRB * surfaceArea(&bins[rightIdx]);
-    // printf("Cost:%f\n", cost);
     
     if (cost < *bestCost)
     {
@@ -300,134 +268,111 @@ void determineBestSplitBin(Scene* s, int nodeIdx, int axis, int binCount, Node* 
       *bestCost = cost;
     }
   }
+  // After computing the min cost of the right part, the division by SA(N) plus c_t is applied
   *bestCost = 1.0/2.0 + *bestCost/surfaceArea(&s->bvh[nodeIdx]);
 }
 
-void buildBins(Scene* s, int nodeIdx, int axis, int binCount, Node* bins)
+// Computete the bins AABB by determining where does a primitive's centroid lies
+void buildBins(Scene* s, int nodeIdx, int axis, int nBins, Node* bins)
 {
-  resetNodes(bins, 0, binCount);
-
-  int objectCount = s->bvh[nodeIdx].nPrimitives;
+  int nPrimitives = s->bvh[nodeIdx].nPrimitives;
   int first = s->bvh[nodeIdx].primitiveOffset;
 
-  float minB = s->bvh[nodeIdx].minB[axis];
+  float minB = s->bvh[nodeIdx].minB[axis]; 
   float maxB = s->bvh[nodeIdx].maxB[axis];
-  
+
+  // Compute the bin size along the axis with larger extent
   float extent = maxB - minB; 
-  float binSize = extent/binCount;
+  float binSize = extent/nBins;
   
-  for(int i = 0; i < objectCount; i++)
+  for(int i = 0; i < nPrimitives; i++)
   {
-    PrimitiveInfo object = s->objectIDs[first+i];
+    PrimitiveInfo object = s->primitiveIDs[first+i];
+    vec3 centroid;
+    if (object.type == TRIANGLE) glm_vec3_copy(s->triangles[object.idx].centroid, centroid);
+    if (object.type == SPHERE) glm_vec3_copy(s->spheres[object.idx].center, centroid);
 
-    // Sphere Primitive
-    if (object.type == SPHERE)
-    {
-      float sphereCenter = s->spheres[object.idx].center[axis];
-      float sphereOffset = sphereCenter - minB;
-  
-      // printf("Sphere idx:%d, center: %f, offset: %f\n", sphereIdx, sphereCenter, sphereOffset);
-      vec3 sphereMaxB, sphereMinB;
-      glm_vec3_subs(s->spheres[object.idx].center, s->spheres[object.idx].radius, sphereMinB);
-      glm_vec3_adds(s->spheres[object.idx].center, s->spheres[object.idx].radius, sphereMaxB);
-  
-      int binIdx = max(0, min(binCount-1, (int)sphereOffset/binSize));
-      // printf("Bin index: %d\n", binIdx);
-      glm_vec3_minv(bins[binIdx].minB, sphereMinB, bins[binIdx].minB);     
-      glm_vec3_maxv(bins[binIdx].maxB, sphereMaxB, bins[binIdx].maxB);
-      bins[binIdx].nPrimitives ++;        
-      continue;
-    }
+    // Determines the bin in which the centroid of a primitive lies
+    float offset = centroid[axis] - minB;
+    int binIdx = max(0, min(nBins-1, (int)offset/binSize));
 
-    // Triangle Primitive
-    float offset = s->triangles[object.idx].centroid[axis] - minB;
-    int binIdx = max(0, min(binCount-1, (int)offset/binSize));
-
-    vec3 a, b, c;
-    triangleVertex(s->attrib.vertices, s->triangles[object.idx].a, a);
-    triangleVertex(s->attrib.vertices, s->triangles[object.idx].b, b);
-    triangleVertex(s->attrib.vertices, s->triangles[object.idx].c, c);
+    // Update the AABB of each bin based on the primitive assigned to it
+    glm_vec3_minv(bins[binIdx].minB, s->primitivesAABB[object.idx].minB, bins[binIdx].minB);     
+    glm_vec3_maxv(bins[binIdx].maxB, s->primitivesAABB[object.idx].maxB, bins[binIdx].maxB);
     
-    glm_vec3_minv(bins[binIdx].minB, a, bins[binIdx].minB);
-    glm_vec3_minv(bins[binIdx].minB, b, bins[binIdx].minB);
-    glm_vec3_minv(bins[binIdx].minB, c, bins[binIdx].minB);
-
-    glm_vec3_maxv(bins[binIdx].maxB, a, bins[binIdx].maxB);
-    glm_vec3_maxv(bins[binIdx].maxB, b, bins[binIdx].maxB);
-    glm_vec3_maxv(bins[binIdx].maxB, c, bins[binIdx].maxB);
     bins[binIdx].nPrimitives++;
-  }
+  }  
 }
 
-void collectBins(Node* bins, int binCount)
+// Compute all possible partitions along an axis based on the number of bins
+void computePossibleBinPartitions(Node* bins, int nBins)
 {
-  for(int i = 0; i < binCount; i++)
+  for(int i = 0; i < nBins; i++)
   {
-    // Note
-    // bins[48] and bins[49] are used for temporary data
+    // Expand left AABB of new possible partition
+    int leftIdx = i + nBins;
+  
+    glm_vec3_minv(bins[nBins*3].minB, bins[i].minB, bins[nBins*3].minB);
+    bins[nBins*3].nPrimitives += bins[i].nPrimitives;
+    glm_vec3_maxv(bins[nBins*3].maxB, bins[i].maxB, bins[nBins*3].maxB);
 
-    // Expand left box
-    int leftIdx = i + binCount;
-    
-    glm_vec3_minv(bins[binCount*3].minB, bins[i].minB, bins[binCount*3].minB);
-    bins[binCount*3].nPrimitives += bins[i].nPrimitives;
-    glm_vec3_maxv(bins[binCount*3].maxB, bins[i].maxB, bins[binCount*3].maxB);
+    bins[leftIdx] = bins[nBins*3];
 
-    bins[leftIdx] = bins[binCount*3];
+    // Expand left AABB of new possible partition
+    int rightIdx = nBins - 1 - i + nBins*2;
+    int binIdx = nBins - 1 - i;
+    glm_vec3_minv(bins[nBins*3+1].minB, bins[binIdx].minB, bins[nBins*3+1].minB);
+    bins[nBins*3+1].nPrimitives += bins[binIdx].nPrimitives;
+    glm_vec3_maxv(bins[nBins*3+1].maxB, bins[binIdx].maxB, bins[nBins*3+1].maxB);
 
-    // Expand right box
-    int rightIdx = (binCount - 1 - i + binCount*2);
-    int binIdx = binCount - 1 - i;
-    glm_vec3_minv(bins[binCount*3+1].minB, bins[binIdx].minB, bins[binCount*3+1].minB);
-    bins[binCount*3+1].nPrimitives += bins[binIdx].nPrimitives;
-    glm_vec3_maxv(bins[binCount*3+1].maxB, bins[binIdx].maxB, bins[binCount*3+1].maxB);
-
-    bins[rightIdx] = bins[binCount*3+1];
+    bins[rightIdx] = bins[nBins*3+1];
   }
 }
 
-int objectSplit(Scene* s, int parentIdx, int axis, int nodesUsed, float splitPos, Node* bins, int nBins)
+// Split the AABB of the subtree node in its left and right child node
+int splitAABB(Scene* s, int parentIdx, int axis, int nodesUsed, float splitPos, Node* bins, int nBins)
 {
-  int objectCount = s->bvh[parentIdx].nPrimitives;
-  int contents = s->bvh[parentIdx].primitiveOffset;
+  int nPrimitives = s->bvh[parentIdx].nPrimitives;
+  int primitiveOffset = s->bvh[parentIdx].primitiveOffset;
 
-  // split groups
-  int i = contents;
-  int j = i + objectCount - 1;
+  // Order primitive IDs depending to which side of the partition they were assigned
+  int i = primitiveOffset;
+  int j = i + nPrimitives - 1;
   PrimitiveInfo temp;
   while (i <= j)
   {
-    if (s->objectIDs[i].type == SPHERE && s->spheres[s->objectIDs[i].idx].center[axis] < splitPos)  i++;
-    else if (s->objectIDs[i].type == TRIANGLE && s->triangles[s->objectIDs[i].idx].centroid[axis] < splitPos) i++;
+    if (s->primitiveIDs[i].type == SPHERE && s->spheres[s->primitiveIDs[i].idx].center[axis] < splitPos)  i++;
+    else if (s->primitiveIDs[i].type == TRIANGLE && s->triangles[s->primitiveIDs[i].idx].centroid[axis] < splitPos) i++;
     else {
-      temp = s->objectIDs[i];
-      s->objectIDs[i] = s->objectIDs[j];
-      s->objectIDs[j] = temp;
+      temp = s->primitiveIDs[i];
+      s->primitiveIDs[i] = s->primitiveIDs[j];
+      s->primitiveIDs[j] = temp;
       j--;
     }
   }
 
-  // create child nodes
-  int leftCount = i - contents;
+  int leftCount = i - primitiveOffset;
+  if (leftCount == 0 || leftCount == nPrimitives) return nodesUsed;
 
-  if (leftCount == 0 || leftCount == objectCount) return nodesUsed;
-
-  int leftChildIdx = nodesUsed;
-  nodesUsed ++;
-  s->bvh[leftChildIdx].primitiveOffset = contents;
+  // Create left child with the primitives assigned to the first partition
+  int leftChildIdx = nodesUsed ++;
+  s->bvh[leftChildIdx].primitiveOffset = primitiveOffset;
   s->bvh[leftChildIdx].nPrimitives = leftCount;
   s->bvh[parentIdx].primitiveOffset = leftChildIdx;
 
-  int rightChildIdx = nodesUsed;
-  nodesUsed ++;
+  // Create right child with the primitives assigned to the second partition
+  int rightChildIdx = nodesUsed ++ ;
   s->bvh[rightChildIdx].primitiveOffset = i;
-  s->bvh[rightChildIdx].nPrimitives = objectCount - leftCount;
+  s->bvh[rightChildIdx].nPrimitives = nPrimitives - leftCount;
 
+  // Repeat the process by partitioning the left and right child nodes
   updateBounds(s, leftChildIdx);
   nodesUsed = subdivide(s, leftChildIdx, nodesUsed, bins, nBins);
   updateBounds(s, rightChildIdx);
   nodesUsed = subdivide(s, rightChildIdx, nodesUsed, bins, nBins);
 
+  /* Set the subtree root node's number of primtives to zero as only
+     leaf nodes contain primitives */
   s->bvh[parentIdx].nPrimitives = 0;
   return nodesUsed;
 }

@@ -8,5 +8,5 @@ find_package(glfw3 REQUIRED)
 file(GLOB_RECURSE SRC_FILES src/*.c)
 add_executable(raytracing main.c ${SRC_FILES})
 
-# target_compile_options(raytracing PUBLIC -O3)
+target_compile_options(raytracing PUBLIC -O3)
 target_link_libraries(raytracing PUBLIC GL dl glfw m)

@@ -232,7 +232,7 @@ void genSceneSSBO(int nBuffers, unsigned int* sceneSSBO, Scene* s, Shader* progr
   
   // Object IDs
   glBindBuffer(GL_SHADER_STORAGE_BUFFER, sceneSSBO[4]);
-  glBufferStorage(GL_SHADER_STORAGE_BUFFER, s->nObjs[2] * sizeof(PrimitiveInfo), s->objectIDs, GL_DYNAMIC_STORAGE_BIT);
+  glBufferStorage(GL_SHADER_STORAGE_BUFFER, s->nObjs[2] * sizeof(PrimitiveInfo), s->primitiveIDs, GL_DYNAMIC_STORAGE_BIT);
   glBindBufferBase(GL_SHADER_STORAGE_BUFFER, bindingPoints[4], sceneSSBO[4]);
 
   // Objects BVH

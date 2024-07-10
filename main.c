@@ -112,6 +112,8 @@ int main(int argc, char *argv[])
   unsigned int sceneSSBO[7];
   int bindingPoints[7];
   genSceneSSBO(7, sceneSSBO, &s, &rayTracingShaderProgram, bindingPoints);
+  printf("%d %d %d %d\n", s.nObjs[0], s.nObjs[1], s.nObjs[2], s.nObjs[3]);
+  setIVec4(&rayTracingShaderProgram, "sceneNumPrimitives", s.nObjs);
 
   // Timing
   info = initRenderInfo();
@@ -150,7 +152,6 @@ int main(int argc, char *argv[])
     // The current frame (aka current time) is used as the seed for the generating random numbers   
     setFloat(&rayTracingShaderProgram, "uTime", info.currentTime);
     setInt(&rayTracingShaderProgram, "uFrameCount", info.frameCount);
-    setIVec4(&rayTracingShaderProgram, "sceneInfo", s.nObjs);
     sendCameraParameters(&rayTracingShaderProgram, &camera);
     glDispatchCompute((unsigned int)(SCREEN_WIDTH/4), (unsigned int)(SCREEN_HEIGHT/8),1);
 
