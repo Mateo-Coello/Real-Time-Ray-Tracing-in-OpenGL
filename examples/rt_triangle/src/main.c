@@ -1,9 +1,9 @@
-#include <glad/glad.h>
-#include <GLFW/glfw3.h>
+#include "glad/glad.h"
+#include "GLFW/glfw3.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
-#include <cglm/cglm.h>
+#include "cglm/cglm.h"
 #include "shader.h"
 #include "camera.h"
 #include "renderInfo.h"

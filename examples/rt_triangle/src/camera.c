@@ -1,9 +1,9 @@
 #include "camera.h"
 #include "renderInfo.h"
-#include <cglm/affine-pre.h>
-#include <cglm/affine.h>
-#include <cglm/mat4.h>
-#include <cglm/simd/sse2/mat4.h>
+#include "cglm/affine-pre.h"
+#include "cglm/affine.h"
+#include "cglm/mat4.h"
+#include "cglm/simd/sse2/mat4.h"
 
 void initializeCamera(Camera* camera, vec3 position, float vfov, float iWidth, float iHeight){
   glm_vec3_copy(position, camera->position);
