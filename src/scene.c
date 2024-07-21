@@ -36,7 +36,7 @@ Scene generateSceneModel(char *modelName)
   s.nObjs[3] = 1; // num lights
   s.spheres = genSphereBuffer(s.nObjs[0]);
 
-  s.spheres[0] = sphere((vec3){0.0, 3.0, -0.0}, 0.02, 3);
+  s.spheres[0] = sphere((vec3){0.0, 3.0, 0.0}, 0.02, 3);
   
   char path[100] = "./models/";
   strcat(path,modelName);
@@ -46,51 +46,6 @@ Scene generateSceneModel(char *modelName)
   int nBins = 11;
   buildBVH(&s, nBins);
   
-  return s;
-}
-
-Scene generateRocksScene()
-{
-  Scene s = {};
-
-  loadModel(&s, "./models/rocks.obj");
-    
-  s.primitiveIDs = genObjectIDs(s.nObjs);
-  s.bvh = makeNodes(2*s.nObjs[2]+1);
-  int nBins = 12;
-  buildBVH(&s, nBins);
-
-  printf("Num triangles:%d\n",s.nObjs[2]);
-  
-  printf("%ld\n", s.nShapes);
-  printf("%d\n", s.attrib.num_faces);
-  printf("%d\n", s.attrib.num_face_num_verts);
-  printf("%ld\n", s.nMats);
-  
-  return s;
-}
-
-Scene generateRainbowLightsScene()
-{
-  Scene s = {};
-
-  s.nObjs[0] = 3;
-  s.spheres = genSphereBuffer(s.nObjs[0]);
-
-  s.spheres[0] = sphere((vec3){0.0, 0.5, 0.0}, 0.5, 0);
-  s.spheres[1] = sphere((vec3){0.7, 0.2, 0.3}, 0.2, 2);
-  s.spheres[2] = sphere((vec3){-0.6, 0.1, 0.55}, 0.1, 1);
-
-  loadModel(&s, "/models/rainbow.obj");
-
-  s.nMaterials = s.nMats;
-  s.materials = genMaterialBuffer(s.nMaterials);
-  
-  printf("%d\n",s.nMaterials);
-
-  int nBins = 12;
-  buildBVH(&s, nBins);
- 
   return s;
 }
   
@@ -107,7 +62,6 @@ void deleteSceneResources(Scene* s)
   if (s->triangles != NULL) free(s->triangles);
   free(s->materials);
   free(s->bvh);
-  free(s->primitivesAABB);
   free(s->primitiveIDs);
 }
 
@@ -117,80 +71,61 @@ void deleteSceneResources(Scene* s)
 void buildBVH(Scene* s, int nBins)
 {
   s->primitiveIDs = genObjectIDs(s->nObjs);
-  s->bvh = makeNodes(2*s->nObjs[2]-1);
+  s->bvh = makeNodes(2*s->nObjs[2]+1);
   
   s->bvh[0].nPrimitives = s->nObjs[2];
   s->bvh[0].primitiveOffset = 0;
 
   Node* bins = makeNodes(nBins*3 + 2);
-  s->primitivesAABB = makeNodes(s->nObjs[2]);
 
-  computeAABBs(s);
   updateBounds(s, 0);
   
   s->nodesUsed = subdivide(s, 0, 1, bins, nBins);
   s->bvh = realloc(s->bvh, s->nodesUsed*sizeof(Node));
   
-  printNodes(s->bvh, s->nodesUsed);
-  for(int i = 0; i < s->nObjs[2]; i++)
-  {
-    printf("| %d |", s->primitiveIDs[i].idx);
-  }
-  printf("\n");
-  // for(int i = 0; i < s->nObjs[2]; i++)
-  // {
-  //   printf("| %c |", s->primitiveIDs[i].type == SPHERE ? 'S' : 'T');
-  // }
-  // printf("\n");
-
+  // printNodes(s->bvh, s->nodesUsed);
   free(bins);
-}
-
-// Compute the AABB of each primitive
-void computeAABBs(Scene* s)
-{
-  for (int i=0; i < s->nObjs[2]; i++)
-  {
-    PrimitiveInfo object = s->primitiveIDs[i];
-
-    // Sphere primitive
-    if (object.type == SPHERE)
-    {
-        glm_vec3_subs(s->spheres[object.idx].center, s->spheres[object.idx].radius, s->primitivesAABB[object.idx].minB); // Min bound
-        glm_vec3_adds(s->spheres[object.idx].center, s->spheres[object.idx].radius, s->primitivesAABB[object.idx].maxB); // Max bound
-        continue;
-    }
-    
-    // Triangle Primitives
-    vec3 a, b, c; 
-    triangleVertex(s->attrib.vertices, s->triangles[object.idx].a, a);
-    triangleVertex(s->attrib.vertices, s->triangles[object.idx].b, b);
-    triangleVertex(s->attrib.vertices, s->triangles[object.idx].c, c);
-
-    // Min bound
-    glm_vec3_minv(a, b, s->primitivesAABB[object.idx].minB);
-    glm_vec3_minv(s->primitivesAABB[object.idx].minB, c, s->primitivesAABB[object.idx].minB);
-    // Max bound
-    glm_vec3_maxv(a, b, s->primitivesAABB[object.idx].maxB);
-    glm_vec3_maxv(s->primitivesAABB[object.idx].maxB, c, s->primitivesAABB[object.idx].maxB);
-  }
 }
 
 // Compute or update the bounds of a node's AABB
 void updateBounds(Scene* s, int nodeIdx)
 {
-  int nPrimitives = s->bvh[nodeIdx].nPrimitives; 
+  int count = s->bvh[nodeIdx].nPrimitives; // Number of spheres in node
   int first = s->bvh[nodeIdx].primitiveOffset;
 
-  for(int i = 0; i < nPrimitives; i++)
+  for(int i = 0; i < count; i++)
   {
     PrimitiveInfo object = s->primitiveIDs[first+i];
+    vec3 minB, maxB;
 
-    // Update node's min bound
-    glm_vec3_minv(s->primitivesAABB[object.idx].minB, s->bvh[nodeIdx].minB, s->bvh[nodeIdx].minB);
+    // Sphere Primitive
+    if (object.type == SPHERE)
+    {
+        // find new minimum
+        glm_vec3_subs(s->spheres[object.idx].center, s->spheres[object.idx].radius, minB);
+        glm_vec3_minv(minB, s->bvh[nodeIdx].minB, s->bvh[nodeIdx].minB);
+    
+        // find new maximum
+        glm_vec3_adds(s->spheres[object.idx].center, s->spheres[object.idx].radius, maxB);
+        glm_vec3_maxv(maxB, s->bvh[nodeIdx].maxB, s->bvh[nodeIdx].maxB);
+        continue;
+    }
 
-    // Update node's max bound
-    glm_vec3_maxv(s->primitivesAABB[object.idx].maxB, s->bvh[nodeIdx].maxB, s->bvh[nodeIdx].maxB);
+    // Triangle Primitive
+    vec3 a, b, c; 
+    triangleVertex(s->attrib.vertices, s->triangles[object.idx].a, a);
+    triangleVertex(s->attrib.vertices, s->triangles[object.idx].b, b);
+    triangleVertex(s->attrib.vertices, s->triangles[object.idx].c, c);
+    
+    // find new minimum
+    glm_vec3_minv(s->bvh[nodeIdx].minB, a, s->bvh[nodeIdx].minB);
+    glm_vec3_minv(s->bvh[nodeIdx].minB, b, s->bvh[nodeIdx].minB);
+    glm_vec3_minv(s->bvh[nodeIdx].minB, c, s->bvh[nodeIdx].minB);
+
+    // find new maximum
+    glm_vec3_maxv(s->bvh[nodeIdx].maxB, a, s->bvh[nodeIdx].maxB);
+    glm_vec3_maxv(s->bvh[nodeIdx].maxB, b, s->bvh[nodeIdx].maxB);
+    glm_vec3_maxv(s->bvh[nodeIdx].maxB, c, s->bvh[nodeIdx].maxB);
   }
 }
 
@@ -224,7 +159,7 @@ int subdivide(Scene* s, int nodeIdx, int nodesUsed, Node* bins, int nBins)
 
   determineBestSplitBin(s, nodeIdx, bestAxis, nBins, bins, &pos, &cost);
 
-  // float nodeCost = nPrimitives * (dimensions[0]*dimensions[1] + dimensions[1]*dimensions[2] + dimensions[0]*dimensions[2]);
+  // float nodeCost = nPrimitives * surfaceArea(&s->bvh[nodeIdx]);
   float leafCost = (float)nPrimitives;
   
   if (cost >= leafCost) return nodesUsed;
@@ -269,7 +204,7 @@ void determineBestSplitBin(Scene* s, int nodeIdx, int axis, int nBins, Node* bin
     }
   }
   // After computing the min cost of the right part, the division by SA(N) plus c_t is applied
-  *bestCost = 1.0/2.0 + *bestCost/surfaceArea(&s->bvh[nodeIdx]);
+  *bestCost = 0.5 + *bestCost/surfaceArea(&s->bvh[nodeIdx]);
 }
 
 // Computete the bins AABB by determining where does a primitive's centroid lies
@@ -278,30 +213,53 @@ void buildBins(Scene* s, int nodeIdx, int axis, int nBins, Node* bins)
   int nPrimitives = s->bvh[nodeIdx].nPrimitives;
   int first = s->bvh[nodeIdx].primitiveOffset;
 
-  float minB = s->bvh[nodeIdx].minB[axis]; 
+  float minB = s->bvh[nodeIdx].minB[axis];
   float maxB = s->bvh[nodeIdx].maxB[axis];
-
-  // Compute the bin size along the axis with larger extent
+  
   float extent = maxB - minB; 
   float binSize = extent/nBins;
   
   for(int i = 0; i < nPrimitives; i++)
   {
     PrimitiveInfo object = s->primitiveIDs[first+i];
-    vec3 centroid;
-    if (object.type == TRIANGLE) glm_vec3_copy(s->triangles[object.idx].centroid, centroid);
-    if (object.type == SPHERE) glm_vec3_copy(s->spheres[object.idx].center, centroid);
 
-    // Determines the bin in which the centroid of a primitive lies
-    float offset = centroid[axis] - minB;
+    // Sphere Primitive
+    if (object.type == SPHERE)
+    {
+      float sphereCenter = s->spheres[object.idx].center[axis];
+      float sphereOffset = sphereCenter - minB;
+  
+      // printf("Sphere idx:%d, center: %f, offset: %f\n", sphereIdx, sphereCenter, sphereOffset);
+      vec3 sphereMaxB, sphereMinB;
+      glm_vec3_subs(s->spheres[object.idx].center, s->spheres[object.idx].radius, sphereMinB);
+      glm_vec3_adds(s->spheres[object.idx].center, s->spheres[object.idx].radius, sphereMaxB);
+  
+      int binIdx = max(0, min(nBins-1, (int)sphereOffset/binSize));
+      // printf("Bin index: %d\n", binIdx);
+      glm_vec3_minv(bins[binIdx].minB, sphereMinB, bins[binIdx].minB);     
+      glm_vec3_maxv(bins[binIdx].maxB, sphereMaxB, bins[binIdx].maxB);
+      bins[binIdx].nPrimitives ++;        
+      continue;
+    }
+
+    // Triangle Primitive
+    float offset = s->triangles[object.idx].centroid[axis] - minB;
     int binIdx = max(0, min(nBins-1, (int)offset/binSize));
 
-    // Update the AABB of each bin based on the primitive assigned to it
-    glm_vec3_minv(bins[binIdx].minB, s->primitivesAABB[object.idx].minB, bins[binIdx].minB);     
-    glm_vec3_maxv(bins[binIdx].maxB, s->primitivesAABB[object.idx].maxB, bins[binIdx].maxB);
+    vec3 a, b, c;
+    triangleVertex(s->attrib.vertices, s->triangles[object.idx].a, a);
+    triangleVertex(s->attrib.vertices, s->triangles[object.idx].b, b);
+    triangleVertex(s->attrib.vertices, s->triangles[object.idx].c, c);
     
+    glm_vec3_minv(bins[binIdx].minB, a, bins[binIdx].minB);
+    glm_vec3_minv(bins[binIdx].minB, b, bins[binIdx].minB);
+    glm_vec3_minv(bins[binIdx].minB, c, bins[binIdx].minB);
+
+    glm_vec3_maxv(bins[binIdx].maxB, a, bins[binIdx].maxB);
+    glm_vec3_maxv(bins[binIdx].maxB, b, bins[binIdx].maxB);
+    glm_vec3_maxv(bins[binIdx].maxB, c, bins[binIdx].maxB);
     bins[binIdx].nPrimitives++;
-  }  
+  }
 }
 
 // Compute all possible partitions along an axis based on the number of bins
@@ -381,6 +339,9 @@ int splitAABB(Scene* s, int parentIdx, int axis, int nodesUsed, float splitPos, 
 //                  Model Loading
 // ----------------------------------------------
 
+// Mapping file content to memory using Linux libraries
+#if defined(IS_LINUX)
+
 static char* mmap_file(size_t* len, const char* filename) {
 
   struct stat sb;
@@ -418,8 +379,74 @@ static char* mmap_file(size_t* len, const char* filename) {
   (*len) = sb.st_size;
 
   return p;
-
 }
+
+// Mapping file content to memory using windows libraries
+#elif defined(IS_WINDOWS)
+
+#include <windows.h>
+static char* mmap_file(size_t* len, const char* filename) {
+    HANDLE hFile = CreateFile(
+        filename,
+        GENERIC_READ,
+        FILE_SHARE_READ,
+        NULL,
+        OPEN_EXISTING,
+        FILE_ATTRIBUTE_NORMAL,
+        NULL
+    );
+
+    if (hFile == INVALID_HANDLE_VALUE) {
+        fprintf(stderr, "Could not open file %s (error %lu)\n", filename, GetLastError());
+        return NULL;
+    }
+
+    LARGE_INTEGER fileSize;
+    if (!GetFileSizeEx(hFile, &fileSize)) {
+        fprintf(stderr, "Could not get file size (error %lu)\n", GetLastError());
+        CloseHandle(hFile);
+        return NULL;
+    }
+
+    HANDLE hMapping = CreateFileMapping(
+        hFile,
+        NULL,
+        PAGE_READONLY,
+        0,
+        0,
+        NULL
+    );
+
+    if (hMapping == NULL) {
+        fprintf(stderr, "Could not create file mapping object (error %lu)\n", GetLastError());
+        CloseHandle(hFile);
+        return NULL;
+    }
+
+    char* p = (char*)MapViewOfFile(
+        hMapping,
+        FILE_MAP_READ,
+        0,
+        0,
+        0
+    );
+
+    if (p == NULL) {
+        fprintf(stderr, "Could not map view of file (error %lu)\n", GetLastError());
+        CloseHandle(hMapping);
+        CloseHandle(hFile);
+        return NULL;
+    }
+
+    // Close the file handle and mapping handle; the mapped view will remain valid
+    CloseHandle(hMapping);
+    CloseHandle(hFile);
+
+    *len = (size_t)fileSize.QuadPart;
+
+    return p;
+}
+#endif
 
 static void get_file_data(void* ctx, const char* filename, const int is_mtl,
                           const char* obj_filename, char** data, size_t* len) {
@@ -456,11 +483,11 @@ void loadModel(Scene* s, const char* filename)
     return;
   }
   s->nObjs[1] = s->attrib.num_face_num_verts; // num triangles
-  printf("Num Triangles: %d\n", s->nObjs[1]);
+  // printf("Num Triangles: %d\n", s->nObjs[1]);
 
   int v0Idx, v1Idx, v2Idx;
 
-  printf("%ld\n", s->nMats);
+  // printf("%ld\n", s->nMats);
   s->materials = genMaterialBuffer(s->nMats);
   for (size_t m = 0; m < s->nMats; m++) {
     s->materials[m] = material(s->mats[m]);

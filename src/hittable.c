@@ -1,5 +1,5 @@
 #include "hittable.h"
-#include <cglm/vec4.h>
+#include "cglm/vec4.h"
 
 Material material(tinyobj_material_t mat)
 {

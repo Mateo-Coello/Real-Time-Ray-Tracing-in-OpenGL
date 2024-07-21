@@ -126,7 +126,7 @@ layout(location = 2) uniform int   uFrameCount;
 layout(location = 3) uniform vec3  position;
 layout(location = 4) uniform mat4  invView;
 layout(location = 5) uniform mat4  invProj;
-layout(location = 6) uniform ivec4 sceneNumPrimitives;
+layout(location = 6) uniform ivec4 nPrimitives;
 
 // -------------------------------------------------
 //                   Random Utils 
@@ -563,7 +563,7 @@ bool scatter(inout HitRecord rec)
     vec3  diffuseBRDF = m.albedo.xyz / PI; 
     float diffusePDF  = NdotL / PI;
 
-    vec3 totalBRDF = (diffuseBRDF * kd + specularBRDF) * NdotL;
+    vec3 totalBRDF = (diffuseBRDF * kd *NdotL + specularBRDF);
     // vec3 totalBRDF = (diffuseBRDF * kd) * NdotL;
     float totalPDF = diffuseRatio * diffusePDF + specularRatio * specularPDF;
     // float totalPDF = diffusePDF;
@@ -606,7 +606,7 @@ vec3 rayColor(in Ray r)
         // Direct Illumination
         if (bounce == 0)
         {
-            Sphere lightS = spheres[1];
+            Sphere lightS = spheres[nPrimitives[0]-nPrimitives[3]];
             Material lightProp = materials[lightS.matIdx];
             vec3 L = lightS.center.xyz - rec.hitPoint;
             float distance = length(L);

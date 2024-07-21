@@ -1,5 +1,5 @@
 #include "nodes.h"
-#include <cglm/types.h>
+#include "cglm/types.h"
 
 Nodes makeNodes(int nPrimitives)
 {
