@@ -18,6 +18,7 @@ layout(location = 4) uniform mat4  invView;
 layout(location = 5) uniform mat4  invProj;
 layout(location = 6) uniform vec3  sphereCenter;
 layout(location = 7) uniform float sphereRadius;
+layout(location = 8) uniform vec3  color;
 
 struct Sphere
 {
@@ -132,8 +133,11 @@ void main()
     HitRecord rec;
     rec.rayT = interval(0, 999999);
     vec3 pixelColor = vec3(0.0);
-    if (hitSphere(r, s, rec)) 
-        pixelColor = (normalize(rec.hitPoint - s.center) + 1.0)/2.0;
+    if (hitSphere(r, s, rec)){
+        if (color.r != -1 || color.g != -1 || color.b != -1)
+            pixelColor = color;
+        else pixelColor = (normalize(rec.hitPoint - s.center) - 0.8)/-1.6;
+    }
     
     // Gamma correction
     pixelColor = pixelColor / (pixelColor + vec3(1.0));

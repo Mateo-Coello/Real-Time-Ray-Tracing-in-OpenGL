@@ -16,7 +16,7 @@ void blockCursorCallback(GLFWwindow* window, int key, int scancode, int action, 
 void processInput(GLFWwindow *window);
 void sendCameraParameters(Shader* program, Camera* camera);
 void renderTriangle();
-void parseFloat3(const char* tripletInput, vec3 triplet)
+void parseFloat3(const char* tripletInput, vec3 triplet);
 
 // Window settings
 unsigned int SCREEN_WIDTH = 1000;
@@ -95,13 +95,13 @@ int main(int argc, char* argv[])
   genTextureBuffer(&previousFrameBuffer, GL_TEXTURE3, 3, SCREEN_WIDTH, SCREEN_HEIGHT); // Previous Frame Buffer
   
   // Initialize Camera and parameters related
-  vec3 position = {0.0,0.5,5};
+  vec3 position = {0.0,0.5,2};
   initializeCamera(&camera, position, 90.0, (float)SCREEN_WIDTH, (float)SCREEN_HEIGHT);
   
   lastX = (float)SCREEN_WIDTH/2;
   lastY = (float)SCREEN_HEIGHT/2;
 
-  if (argc != 3) {
+  if (argc < 2 || argc > 4) {
     printf("\n+--------------+\n"
            "| Instructions |\n"
            "+--------------+\n\n"
@@ -111,7 +111,7 @@ int main(int argc, char* argv[])
     return 1;
   }
 
-  vec3 sphereCenter;
+  vec3 sphereCenter, color;
 
   parseFloat3(argv[1], sphereCenter);
 
@@ -124,6 +124,15 @@ int main(int argc, char* argv[])
   useShader(&rayTracingShaderProgram);
   setVec3(&rayTracingShaderProgram, "sphereCenter", sphereCenter);
   setFloat(&rayTracingShaderProgram, "sphereRadius", sphereRadius);
+
+  if(argv[3]){
+    parseFloat3(argv[3],color);
+    setVec3(&rayTracingShaderProgram, "color", color);
+    printf("Color: (%f, %f, %f)\n", color[0], color[1], color[2]);
+  } else{
+    glm_vec3_copy((vec3){-1,-1,-1},color);
+    setVec3(&rayTracingShaderProgram, "color", color);
+  }
   
   info = initRenderInfo();
   

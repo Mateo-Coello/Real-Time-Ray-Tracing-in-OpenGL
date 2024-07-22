@@ -103,7 +103,7 @@ int main(int argc, char* argv[])
   lastY = (float)SCREEN_HEIGHT/2;
 
   printf("%d\n", argc);
-  if (argc < 2 && argc > 4) {
+  if (argc < 2 || argc > 3) {
     printf("\n+--------------+\n"
            "| Instructions |\n"
            "+--------------+\n\n"
