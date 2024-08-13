@@ -1,4 +1,3 @@
-#include "nodes.h"
 #include <cglm/vec3.h>
 #define TINYOBJ_LOADER_C_IMPLEMENTATION
 #include "tinyobj_loader_c.h"
@@ -10,13 +9,11 @@ int min(int a, int b){return a < b ? a : b;}
 Scene generateDefaultScene()
 {
   Scene s = {};
-  
-  s.nObjs[0] = 2; // num spheres
-  s.nObjs[3] = 1; // num lights
-  s.spheres = genSphereBuffer(s.nObjs[0]);
 
+  // Scene Spheres
+  s.nObjs[0] = 1;
+  s.spheres = genSphereBuffer(s.nObjs[0]);
   s.spheres[0] = sphere((vec3){0.0, 1.0, 0.0}, 0.5, 3);
-  s.spheres[1] = sphere((vec3){0.0, 8.0, 0.0}, 0.02, 4);
   
   // Scene Triangles
   loadModel(&s, "./models/cornellbox.obj");
@@ -31,12 +28,6 @@ Scene generateDefaultScene()
 Scene generateSceneModel(char *modelName)
 {
   Scene s = {};
-
-  s.nObjs[0] = 1; // num spheres
-  s.nObjs[3] = 1; // num lights
-  s.spheres = genSphereBuffer(s.nObjs[0]);
-
-  s.spheres[0] = sphere((vec3){0.0, 3.0, 0.0}, 0.02, 3);
   
   char path[100] = "./models/";
   strcat(path,modelName);
@@ -66,22 +57,22 @@ void deleteSceneResources(Scene* s)
 }
 
 // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//                 BVH Functions
+//                 BVH Construction
 // ----------------------------------------------
 void buildBVH(Scene* s, int nBins)
 {
   s->primitiveIDs = genObjectIDs(s->nObjs);
-  s->bvh = makeNodes(2*s->nObjs[2]+1);
+  s->bvh = makeAABBs(2*s->nObjs[2]+1);
   
   s->bvh[0].nPrimitives = s->nObjs[2];
   s->bvh[0].primitiveOffset = 0;
 
-  Node* bins = makeNodes(nBins*3 + 2);
+  AABB* bins = makeAABBs(nBins*3 + 2);
 
   updateBounds(s, 0);
   
   s->nodesUsed = subdivide(s, 0, 1, bins, nBins);
-  s->bvh = realloc(s->bvh, s->nodesUsed*sizeof(Node));
+  s->bvh = realloc(s->bvh, s->nodesUsed*sizeof(AABB));
   
   // printNodes(s->bvh, s->nodesUsed);
   free(bins);
@@ -132,7 +123,7 @@ void updateBounds(Scene* s, int nodeIdx)
 /* Check the cost of a partition based on the Surface Area Heurictic.
    If the cost of partitioning is better than creating a leaf then
    the node will be subdivided. */
-int subdivide(Scene* s, int nodeIdx, int nodesUsed, Node* bins, int nBins)
+int subdivide(Scene* s, int nodeIdx, int nodesUsed, AABB* bins, int nBins)
 {
   int nPrimitives = s->bvh[nodeIdx].nPrimitives;
   
@@ -168,9 +159,9 @@ int subdivide(Scene* s, int nodeIdx, int nodesUsed, Node* bins, int nBins)
 }
 
 // Determine which possible partition of the bins is the best
-void determineBestSplitBin(Scene* s, int nodeIdx, int axis, int nBins, Node* bins, float* bestPos, float* bestCost)
+void determineBestSplitBin(Scene* s, int nodeIdx, int axis, int nBins, AABB* bins, float* bestPos, float* bestCost)
 {
-  resetNodes(bins, 0, nBins*3+2); // Clear bins content from previous computation
+  resetAABBs(bins, 0, nBins*3+2); // Clear bins content from previous computation
   buildBins(s, nodeIdx, axis, nBins, bins);
   computePossibleBinPartitions(bins, nBins);
 
@@ -208,7 +199,7 @@ void determineBestSplitBin(Scene* s, int nodeIdx, int axis, int nBins, Node* bin
 }
 
 // Computete the bins AABB by determining where does a primitive's centroid lies
-void buildBins(Scene* s, int nodeIdx, int axis, int nBins, Node* bins)
+void buildBins(Scene* s, int nodeIdx, int axis, int nBins, AABB* bins)
 {
   int nPrimitives = s->bvh[nodeIdx].nPrimitives;
   int first = s->bvh[nodeIdx].primitiveOffset;
@@ -263,7 +254,7 @@ void buildBins(Scene* s, int nodeIdx, int axis, int nBins, Node* bins)
 }
 
 // Compute all possible partitions along an axis based on the number of bins
-void computePossibleBinPartitions(Node* bins, int nBins)
+void computePossibleBinPartitions(AABB* bins, int nBins)
 {
   for(int i = 0; i < nBins; i++)
   {
@@ -288,7 +279,7 @@ void computePossibleBinPartitions(Node* bins, int nBins)
 }
 
 // Split the AABB of the subtree node in its left and right child node
-int splitAABB(Scene* s, int parentIdx, int axis, int nodesUsed, float splitPos, Node* bins, int nBins)
+int splitAABB(Scene* s, int parentIdx, int axis, int nodesUsed, float splitPos, AABB* bins, int nBins)
 {
   int nPrimitives = s->bvh[parentIdx].nPrimitives;
   int primitiveOffset = s->bvh[parentIdx].primitiveOffset;

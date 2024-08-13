@@ -5,7 +5,6 @@ unsigned int genTimeSeed()
   struct timeval currentTime;
   gettimeofday(&currentTime, NULL);
   unsigned int seed = currentTime.tv_sec%1000*currentTime.tv_usec;
-  printf("%u\n",seed);
   return seed;
 }
 

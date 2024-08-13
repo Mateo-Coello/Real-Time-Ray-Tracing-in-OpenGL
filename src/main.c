@@ -64,7 +64,6 @@ int main(int argc, char *argv[])
   glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
   glfwSetCursorPosCallback(window, mouse_callback);
   glfwSetKeyCallback(window, blockCursorCallback);
-  // glfwSetScrollCallback(window, scroll_callback);
 
   // glad: load all OpenGL function pointers
   // ---------------------------------------
@@ -84,7 +83,6 @@ int main(int argc, char *argv[])
   // ------------------------------------
   screenShaderProgram = newShader("shaders/vShader.glsl", "shaders/fShader.glsl");
   rayTracingShaderProgram = newComputeShader("shaders/RT_PBR.glsl");
-  taaShaderProgram = newComputeShader("shaders/TAA.glsl");
 
   useShader(&screenShaderProgram);
   setInt(&screenShaderProgram, "currentFrameBuffer", 0);
@@ -94,7 +92,7 @@ int main(int argc, char *argv[])
   genTextureBuffer(&hitBuffer, GL_TEXTURE1, 1, SCREEN_WIDTH, SCREEN_HEIGHT); // Hit Buffer
   genTextureBuffer(&accumulationBuffer, GL_TEXTURE2, 2, SCREEN_WIDTH, SCREEN_HEIGHT); // Accumulation Buffer
   genTextureBuffer(&previousFrameBuffer, GL_TEXTURE3, 3, SCREEN_WIDTH, SCREEN_HEIGHT); // Previous Frame Buffer
-  
+
   // Initialize Camera and parameters related
   vec3 position = {0.0,0.5,5};
   initializeCamera(&camera, position, 90.0, (float)SCREEN_WIDTH, (float)SCREEN_HEIGHT);
@@ -105,7 +103,7 @@ int main(int argc, char *argv[])
   // Preparing scene
   Scene s;
   if (argc == 1) s = generateDefaultScene();
-  else s = generateSceneModel(argv[1]);
+  else  s = generateSceneModel(argv[1]);
 
   // Generate Scene's SSBOs
   unsigned int sceneSSBO[7];
@@ -113,7 +111,6 @@ int main(int argc, char *argv[])
   genSceneSSBO(7, sceneSSBO, &s, &rayTracingShaderProgram, bindingPoints);
 
   useShader(&rayTracingShaderProgram);
-  setIVec4(&rayTracingShaderProgram, "nPrimitives", s.nObjs);
 
   // Timing
   info = initRenderInfo();
@@ -130,7 +127,7 @@ int main(int argc, char *argv[])
     
     // FPS
     char title[50];
-    snprintf(title, sizeof(title), "Ray Tracing - Render Time: %.2fms", 1000*info.deltaTime);
+    snprintf(title, sizeof(title), "Ray Tracing - Render Time: %.2fms AvFPS: %.1f", 1000*info.deltaTime, 1/info.deltaTime);
     glfwSetWindowTitle(window, title);
 
     // input
@@ -154,24 +151,7 @@ int main(int argc, char *argv[])
     setInt(&rayTracingShaderProgram, "uFrameCount", info.frameCount);
     sendCameraParameters(&rayTracingShaderProgram, &camera);
     glDispatchCompute((unsigned int)(SCREEN_WIDTH/4), (unsigned int)(SCREEN_HEIGHT/8),1);
-
-    // glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
-    
-    // Update previous inverse view and projection matrices
-    glm_mat4_copy(camera.view, pView);
-    glm_mat4_copy(camera.proj, pProj);
-
-    // Temporal Filtering
-    // useShader(&taaShaderProgram);
-    // setInt(&taaShaderProgram, "uFrameCount", info.frameCount);
-    // setMat4(&taaShaderProgram, "invT", camera.invT);
-    // setMat4(&taaShaderProgram, "pView", pView);
-    // setMat4(&taaShaderProgram, "pProj", pProj);
-    // glDispatchCompute((unsigned int)(SCREEN_WIDTH/4), (unsigned int)(SCREEN_HEIGHT/8),1);
-
-    // glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
-    
-    // glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);    
+  
       
     // Ray traced image
     useShader(&screenShaderProgram);
@@ -260,12 +240,6 @@ void mouse_callback(GLFWwindow* window, double xPosIn, double yPosIn){
   lastX = xPos;
   lastY = yPos;
   processMouseMovement(&camera, xOffset, yOffset, true);
-  updateInfo = true;
-}
-
-void scroll_callback(GLFWwindow* window, double xOffset, double yOffset)
-{
-  processMouseScroll(&camera, (float)yOffset);
   updateInfo = true;
 }
 

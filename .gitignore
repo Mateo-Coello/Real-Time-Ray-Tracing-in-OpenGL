@@ -1,9 +1,12 @@
 build/
 .cache/
 raytracing
+raytracing.exe
 examples/rt_triangle/.cache/
 examples/rt_triangle/build/
 examples/rt_triangle/raytracing
+examples/rt_triangle/raytracing.exe
 examples/rt_sphere/.cache
 examples/rt_sphere/build
 examples/rt_sphere/raytracing
+examples/rt_sphere/raytracing.exe

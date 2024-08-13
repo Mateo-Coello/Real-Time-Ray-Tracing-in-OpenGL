@@ -1,9 +1,9 @@
-#include "nodes.h"
+#include "aabb.h"
 #include "cglm/types.h"
 
-Nodes makeNodes(int nPrimitives)
+AABB* makeAABBs(int nPrimitives)
 {
-  Nodes nodes = calloc(nPrimitives, sizeof(Node));
+  AABB* nodes = calloc(nPrimitives, sizeof(AABB));
   for (int i = 0; i < nPrimitives; i++)
   {
     glm_vec4((vec3){INFINITY, INFINITY, INFINITY}, 0.0, nodes[i].minB);
@@ -15,7 +15,7 @@ Nodes makeNodes(int nPrimitives)
   return nodes;
 }
 
-void resetNodes(Nodes nodes, int offset, int count)
+void resetAABBs(AABB* nodes, int offset, int count)
 {
   for(int i=0; i<count; i++)
   {
@@ -26,11 +26,11 @@ void resetNodes(Nodes nodes, int offset, int count)
   }
 }
 
-void printNodes(Nodes nodes, int nNodes)
+void printAABBs(AABB* nodes, int nNodes)
 {
   for(int i=0; i<nNodes; i++)
   {
-    printf("Node: %d SplitAxis: %d\n"
+    printf("AABB: %d SplitAxis: %d\n"
            "Min Bound x:%f y:%f z:%f\n"
            "Max Bound x:%f y:%f z:%f\n"
            "Num Primitives: %d Primitive Offset:%d\n", 
@@ -42,7 +42,7 @@ void printNodes(Nodes nodes, int nNodes)
   }
 }
 
-float surfaceArea(Node *node)
+float surfaceArea(AABB *node)
 {
   vec3 diag;
   glm_vec3_sub(node->maxB, node->minB, diag);

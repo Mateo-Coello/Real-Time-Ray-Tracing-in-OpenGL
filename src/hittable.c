@@ -44,10 +44,9 @@ void triangle(Triangle* t, vec3 v0, vec3 v1, vec3 v2, int matIdx)
   t->matIdx = matIdx;
 }
 
-
 Material* genMaterialBuffer(int count)
 {
-  Material* materials = malloc(count * sizeof(Material));
+  Material* materials = calloc(count, sizeof(Material));
   return materials;
 }
 

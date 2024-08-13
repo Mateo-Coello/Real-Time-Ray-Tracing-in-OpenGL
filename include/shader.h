@@ -4,11 +4,11 @@
 #include "glad/glad.h"
 #include "GLFW/glfw3.h"
 #include "cglm/cglm.h"
+#include "scene.h"
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
 #include <stdlib.h>
-#include "scene.h"
 
 typedef struct {
   unsigned int ID;

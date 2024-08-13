@@ -7,7 +7,7 @@ precision highp int;
 //                  GLOBAL PARAMETERS 
 // -------------------------------------------------
 
-#define MAX_BOUNCES 1
+#define MAX_BOUNCES 4
 #define INFINITY (1./0.)
 #define NEG_INFINITY (-INFINITY)
 #define EPSILON 0.0000001
@@ -91,19 +91,11 @@ struct HitRecord
     bool frontFace;
 };
 
-struct SceneInfo
-{
-    int nSpheres;
-    int nTri;
-    int nObjects;
-    int nLights;
-};
-
 // -------------------------------------------------
 //                  UNIFORMS & SSBOs
 // -------------------------------------------------
 
-layout(local_size_x = 4, local_size_y = 8, local_size_z=1) in;
+layout(local_size_x = 16, local_size_y = 16, local_size_z=1) in;
 
 layout(rgba32f, binding = 0) uniform image2D currentFrameBuffer;
 layout(rgba32f, binding = 1) uniform image2D hitBuffer;
@@ -126,7 +118,7 @@ layout(location = 2) uniform int   uFrameCount;
 layout(location = 3) uniform vec3  position;
 layout(location = 4) uniform mat4  invView;
 layout(location = 5) uniform mat4  invProj;
-layout(location = 6) uniform ivec4 nPrimitives;
+// layout(location = 6) uniform ivec4 scenePrimitives;
 
 // -------------------------------------------------
 //                   Random Utils 
@@ -155,49 +147,6 @@ float randomFloatRange(in float min, in float max)
 // -------------------------------------------------
 //                    Vec Utils 
 // -------------------------------------------------
-
-// Generates random vector whose components are between [0,1)
-vec3 randomVec3()
-{
-    return vec3(
-            randomFloat(),
-            randomFloat(),
-            randomFloat());
-}
-
-// Generates random vector whose components are between [min,max)
-vec3 randomVec3Range(in float min, in float max)
-{
-    return vec3(
-            randomFloatRange(min, max),
-            randomFloatRange(min, max),
-            randomFloatRange(min, max));
-}
-
-vec3 randomVec3InUnitDisk()
-{
-    vec3 v;
-    while (true)
-    {
-        v = vec3(randomFloatRange(-1, 1), randomFloatRange(-1, 1), 0);
-        if (dot(v,v) < 1){return v;}
-    }
-}
-
-vec3 randomVec3InUnitSphere()
-{
-    vec3 v;
-    while (true)
-    {
-        v = randomVec3Range(-1, 1);
-        if (dot(v,v) < 1){return v;}
-    } 
-}
-
-vec3 randomUnitVec3()
-{
-    return normalize(randomVec3InUnitSphere());
-}
 
 bool nearZero(in vec3 v)
 {
@@ -244,7 +193,7 @@ bool surrounds(in Interval i, in float x){return i.min < x && x < i.max;}
 //             Physical Based Rendering 
 // -------------------------------------------------
 
-float distributionGGX(float NdotH, float roughness)
+float distributionGGX(in float NdotH, in float roughness)
 {
     float a = roughness*roughness;
     float a2 = a*a;
@@ -257,10 +206,10 @@ float distributionGGX(float NdotH, float roughness)
     return num / denom;
 }
 
-float geometrySchlickGGX(float NdotV, float roughness)
+float geometrySchlickGGX(in float NdotV, in float roughness)
 {
-    float r = (roughness + 1.0);
-    float k = (r*r) / 8.0;
+    float a = (roughness + 1.0);
+    float k = (a*a) / 8.0;
 
     float num   = NdotV;
     float denom = NdotV * (1.0 - k) + k;
@@ -268,7 +217,7 @@ float geometrySchlickGGX(float NdotV, float roughness)
     return num / denom;
 }
                                                                                
-float geometrySmith(float NdotV, float NdotL, float roughness)
+float geometrySmith(in float NdotV, in float NdotL, in float roughness)
 {
     float ggx2 = geometrySchlickGGX(NdotV, roughness);
     float ggx1 = geometrySchlickGGX(NdotL, roughness);
@@ -276,9 +225,40 @@ float geometrySmith(float NdotV, float NdotL, float roughness)
     return ggx1 * ggx2;
 }
 
-vec3 fresnelSchlick(float cosTheta, vec3 F0)
+vec3 fresnelSchlick(in float cosTheta, in vec3 F0)
 {
     return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+}
+
+vec3 cosineSample(vec3 N)
+{
+    float cosTheta = sqrt(randomFloat());
+    float sinTheta = sqrt(1.0f - cosTheta * cosTheta);
+    float phi = 2 * PI * randomFloat();
+    vec3 d = vec3(cos(phi) * sinTheta, sin(phi) * sinTheta, cosTheta);
+
+    vec3 helper = abs(N.x) < 0.999 ? vec3(1, 0, 0) : vec3(0.0, 0.0, 1.0);
+    vec3 tangent = normalize(cross(N, helper));
+    vec3 bitangent = cross(N, tangent);
+    d = normalize(tangent * d.x + bitangent * d.y + N * d.z);
+    return d;
+}
+
+vec3 importanceSampleGGX(in vec3 N, in vec3 V, in float roughness)
+{
+    float a = roughness * roughness;
+    float phi = 2 * PI * randomFloat();
+
+    float xi = randomFloat(); 
+    float cosTheta = sqrt((1.0 - xi) / (1.0 + (a * a - 1.0) * xi));
+    float sinTheta = sqrt(1.0 - cosTheta * cosTheta);
+
+    vec3 m = vec3(cos(phi) * sinTheta, sin(phi) * sinTheta, cosTheta);
+    vec3 up = abs(N.z) < 0.999 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);
+    vec3 tangent = normalize(cross(N, up));
+    vec3 bitangent = cross(N, tangent);
+    vec3 h = normalize(tangent * m.x + bitangent * m.y + N * m.z);
+    return h;
 }
 
 float importanceSampleGGX_PDF(float NDF, float NdotH, float VdotH)
@@ -290,7 +270,7 @@ float importanceSampleGGX_PDF(float NDF, float NdotH, float VdotH)
 //                   Hit Functions
 // -------------------------------------------------
 
-bool isEmissive(Material m)
+bool isEmissive(in Material m)
 {
     return (m.emission[0] > 0) || (m.emission[1] > 0) || (m.emission[2] > 0); 
 }
@@ -393,7 +373,7 @@ bool hitBB(in Ray r, in Node node, in float nearestHit, in vec3 invDir)
     return t0 <= t1 && t1 > 0 && t0 < nearestHit;
 }
 
-HitRecord traceRay(in Ray r, in Interval rayT)
+HitRecord rdsbTraversal(in Ray r, in Interval rayT)
 {
     HitRecord rec;
     rec.scatterRay = r;
@@ -447,7 +427,7 @@ HitRecord traceRay(in Ray r, in Interval rayT)
     return rec;
 }
 
-HitRecord traceRay1(in Ray r, in Interval rayT)
+HitRecord dbTraversal(in Ray r, in Interval rayT)
 {
     HitRecord rec;
     rec.hit = false;
@@ -528,21 +508,31 @@ bool scatter(inout HitRecord rec)
 {
     if (isEmissive(rec.material)) return false;
     Material m = rec.material;
+
+    float roulette = randomFloat();
+    vec3 reflectionDir;
+    vec3 V = normalize(-rec.scatterRay.dir);
     
     float diffuseRatio = 0.5 * (1.0 - m.metalness);
     float specularRatio = 1 - diffuseRatio;
-   
-    vec3 V = normalize(-rec.scatterRay.dir);
-    vec3 reflectionDir = 
-        int(m.metalness > 0)*reflect(-V, rec.normal) +
-        (1-m.metalness) * (rec.normal + randomUnitVec3());
-    vec3 L = nearZero(reflectionDir) ? rec.normal : reflectionDir;    
+
+    if (roulette < diffuseRatio)
+        // sample diffuse
+        reflectionDir =  cosineSample(rec.normal);
+    else{
+        // sample specular
+        vec3 sampledH = importanceSampleGGX(rec.normal, V, m.roughness);
+        reflectionDir = 2.0 * dot(V, sampledH) * sampledH - V;
+        reflectionDir = normalize(reflectionDir);
+    }
+    
+    vec3 L = normalize(reflectionDir);
     vec3 H = normalize(V + L);
 
-    float NdotL = max(dot(rec.normal, L), 0.0);
-    float NdotH = max(dot(rec.normal, H), 0.0);
-    float NdotV = max(dot(rec.normal, V), 0.0);
-    float VdotH = max(dot(V, H), 0.0);
+    float NdotL = max(abs(dot(rec.normal, L)), 0.0);
+    float NdotH = max(abs(dot(rec.normal, H)), 0.0);
+    float NdotV = max(abs(dot(rec.normal, V)), 0.0);
+    float VdotH = max(abs(dot(V, H)), 0.0);
     
     vec3 f0 = vec3(0.04);
     f0 = mix(f0, m.albedo.xyz, m.metalness);
@@ -555,18 +545,16 @@ bool scatter(inout HitRecord rec)
     vec3 kd = vec3(1.0) - ks;
     kd *= 1.0 - m.metalness;
 
+    vec3  diffuseBRDF = m.albedo.xyz / PI; 
+    float diffusePDF  = NdotL / PI;
+
     vec3  numerator    = NDF * G * F;
     float denominator  = 4.0 * NdotV * NdotL + 0.0001;
     vec3  specularBRDF = numerator/denominator;
     float specularPDF  = importanceSampleGGX_PDF(NDF, NdotH, VdotH);
 
-    vec3  diffuseBRDF = m.albedo.xyz / PI; 
-    float diffusePDF  = NdotL / PI;
-
-    vec3 totalBRDF = (diffuseBRDF * kd *NdotL + specularBRDF);
-    // vec3 totalBRDF = (diffuseBRDF * kd) * NdotL;
+    vec3 totalBRDF = (diffuseBRDF * kd + specularBRDF) * NdotL;
     float totalPDF = diffuseRatio * diffusePDF + specularRatio * specularPDF;
-    // float totalPDF = diffusePDF;
 
     rec.scatterRay.orig = rec.hitPoint;
     rec.scatterRay.dir  = reflectionDir;
@@ -576,10 +564,9 @@ bool scatter(inout HitRecord rec)
 
 vec3 rayColor(in Ray r)
 {   
-    vec3 light = vec3(0.0);
     vec3 indirectLighting = vec3(1.0);
     vec3 directLighting = vec3(0.0);
-    vec3 contribution = vec3(1.0);
+    vec3 contribution = vec3(0.0);
     vec3 skyColor = vec3(1.0);
     
     HitRecord rec;
@@ -587,46 +574,18 @@ vec3 rayColor(in Ray r)
     
     for(int bounce = 0; bounce <= MAX_BOUNCES; bounce++)
     {
-        rec = traceRay(rec.scatterRay, interval(0.001, 999999));
+        rec = rdsbTraversal(rec.scatterRay, interval(0.001, 999999));
         
         if(!rec.hit){
-            contribution *= skyColor;
+            contribution += indirectLighting * skyColor + directLighting;
             break;
         }
+        else if (bounce == MAX_BOUNCES) break; 
 
         // Indirect Illumination
-        if (scatter(rec))
-            indirectLighting *= rec.scatterRay.energy;
-        else { 
-            indirectLighting *= rec.material.emission.xyz;
-            contribution = indirectLighting;           
-            break;
-        }
-
-        // Direct Illumination
-        if (bounce == 0)
-        {
-            Sphere lightS = spheres[nPrimitives[0]-nPrimitives[3]];
-            Material lightProp = materials[lightS.matIdx];
-            vec3 L = lightS.center.xyz - rec.hitPoint;
-            float distance = length(L);
-            L = L/distance;
-            float attenuation = 1.0 / (distance * distance);
-            vec3 radiance = lightProp.emission.xyz * attenuation;
-    
-            HitRecord shadowRec = traceRay(ray(rec.hitPoint, L), interval(0.001, distance));
-            if (isEmissive(shadowRec.material))
-                directLighting = radiance * max(dot(rec.normal, L), 0.0) * rec.material.albedo.xyz;
-            else directLighting = vec3(0.0);
-
-            imageStore(hitBuffer, pixelCoords, vec4(rec.hitPoint, 0));
-        }
-        
-        contribution = indirectLighting + directLighting;           
-        // contribution = indirectLighting;           
-        // contribution = directLighting;           
+        if (scatter(rec)) indirectLighting *= rec.scatterRay.energy;
+        if (bounce == 0) imageStore(hitBuffer, pixelCoords, vec4(rec.hitPoint, 0));
     }
-        
     return contribution;  
 }
 

@@ -237,7 +237,7 @@ void genSceneSSBO(int nBuffers, unsigned int* sceneSSBO, Scene* s, Shader* progr
 
   // Objects BVH
   glBindBuffer(GL_SHADER_STORAGE_BUFFER, sceneSSBO[5]);
-  glBufferStorage(GL_SHADER_STORAGE_BUFFER, s->nodesUsed * sizeof(Node), s->bvh, GL_DYNAMIC_STORAGE_BIT);
+  glBufferStorage(GL_SHADER_STORAGE_BUFFER, s->nodesUsed * sizeof(AABB), s->bvh, GL_DYNAMIC_STORAGE_BIT);
   glBindBufferBase(GL_SHADER_STORAGE_BUFFER, bindingPoints[5], sceneSSBO[5]);
   
   // Lights

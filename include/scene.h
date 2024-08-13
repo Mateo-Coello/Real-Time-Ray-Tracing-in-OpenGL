@@ -14,13 +14,13 @@
 #include "cglm/vec3.h"
 
 #include "hittable.h"
-#include "nodes.h"
+#include "aabb.h"
+#include "tinyobj_loader_c.h"
+#include "random.h"
 
 #include <memory.h>
 #include <stdbool.h>
 #include <string.h>
-
-#include "tinyobj_loader_c.h"
 
 #include <float.h>
 #include <limits.h>
@@ -41,8 +41,8 @@ typedef struct
   Material* materials;
   Sphere* spheres;
   Triangle* triangles;
-  Node* bvh;
-  Node* primitivesAABB;
+  AABB* bvh;
+  AABB* primitivesAABB;
   PrimitiveInfo* primitiveIDs;
   tinyobj_attrib_t attrib;
   tinyobj_shape_t* shapes;
@@ -58,15 +58,15 @@ void buildBVH(Scene* s, int nBins);
 
 void updateBounds(Scene* s, int nodeIdx);
 
-int subdivide(Scene* s, int nodeIdx, int nodesUsed, Node* bins, int nBins);
+int subdivide(Scene* s, int nodeIdx, int nodesUsed, AABB* bins, int nBins);
 
-void determineBestSplitBin(Scene* s, int nodeIdx, int axis, int binCount, Node* bins, float* bestPos, float* bestCost);
+void determineBestSplitBin(Scene* s, int nodeIdx, int axis, int binCount, AABB* bins, float* bestPos, float* bestCost);
 
-void buildBins(Scene* s, int nodeIdx, int axis, int binCount, Node* bins);
+void buildBins(Scene* s, int nodeIdx, int axis, int binCount, AABB* bins);
 
-void computePossibleBinPartitions(Node* bins, int binCount);
+void computePossibleBinPartitions(AABB* bins, int binCount);
 
-int splitAABB(Scene* s, int parentIdx, int axis, int nodesUsed, float splitPos, Node* bins, int nBins);
+int splitAABB(Scene* s, int parentIdx, int axis, int nodesUsed, float splitPos, AABB* bins, int nBins);
 
 Scene generateSceneModel(char *modelName);
 

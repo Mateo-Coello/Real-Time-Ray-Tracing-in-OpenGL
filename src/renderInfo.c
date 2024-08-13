@@ -4,7 +4,7 @@ RenderInfo initRenderInfo()
 {
   RenderInfo info;
   info.currentTime= 0;
-  info.lastTime= 0;
+  info.lastTime= (float)glfwGetTime();
   info.deltaTime = 0;
   info.totalSeconds = 0;
   info.frameCount = 1;
